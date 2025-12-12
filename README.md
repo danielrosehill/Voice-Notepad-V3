@@ -23,6 +23,7 @@ This approach:
 - **Save & copy**: Save to markdown files or copy to clipboard
 - **Word count**: Live word and character count
 - **Keyboard shortcuts**: Full keyboard control for efficient workflow
+- **Global hotkeys**: System-wide hotkeys work even when app is minimized (F14-F20 recommended)
 - **Local configuration**: Settings stored in `~/.config/voice-notepad-v3/`
 
 ## Installation
@@ -75,7 +76,7 @@ python -m src.main
 4. The cleaned transcription appears with markdown formatting
 5. Click **Save** to export or **Copy** to clipboard
 
-### Keyboard Shortcuts
+### Keyboard Shortcuts (In-App)
 
 | Shortcut | Action |
 |----------|--------|
@@ -85,6 +86,20 @@ python -m src.main
 | `Ctrl+S` | Save to file |
 | `Ctrl+Shift+C` | Copy to clipboard |
 | `Ctrl+N` | New note |
+
+### Global Hotkeys
+
+Global hotkeys work even when the app is minimized or unfocused. Configure them in **Settings > Hotkeys**.
+
+**Recommended keys**: F14-F16 (macro keys) to avoid conflicts with other applications.
+
+| Default | Action |
+|---------|--------|
+| F14 | Start recording |
+| F15 | Stop recording (discard) |
+| F16 | Stop & transcribe |
+
+Supports: F1-F20, modifier combinations (Ctrl+, Alt+, Shift+, Super+), and media keys.
 
 ### System Tray
 
@@ -114,14 +129,46 @@ Voice-Notepad-V3/
 │   ├── audio_processor.py # Audio compression
 │   ├── transcription.py   # API clients
 │   ├── markdown_widget.py # Markdown display
+│   ├── hotkeys.py         # Global hotkey handling
 │   └── config.py          # Configuration
 ├── planning/               # Development planning
 │   ├── apiref/            # API reference docs
 │   └── idea-notes/        # Original concept notes
+├── scripts/                # Build scripts
+│   ├── build-deb.sh       # Build .deb package
+│   └── update-build.sh    # Incremental build with version bump
 ├── screenshots/            # Screenshots
 ├── requirements.txt
+├── pyproject.toml
 ├── run.sh
 └── README.md
+```
+
+## Building
+
+### Debian Package (.deb)
+
+Build a Debian package for distribution:
+
+```bash
+# First build
+./scripts/build-deb.sh
+
+# Incremental build (bumps patch version)
+./scripts/update-build.sh
+
+# Bump minor version and build
+./scripts/update-build.sh minor
+
+# Rebuild without version bump
+./scripts/update-build.sh none
+```
+
+Build dependencies: `sudo apt install dpkg fakeroot`
+
+Install the built package:
+```bash
+sudo apt install ./dist/voice-notepad_*.deb
 ```
 
 ## Requirements

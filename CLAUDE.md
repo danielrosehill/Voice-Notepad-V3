@@ -18,6 +18,7 @@ Instead of separate speech-to-text followed by text cleanup, this app sends audi
 - `src/transcription.py` - API clients for Gemini, OpenAI, and Mistral
 - `src/markdown_widget.py` - Markdown rendering widget
 - `src/config.py` - Configuration management (API keys, models, settings)
+- `src/hotkeys.py` - Global hotkey handling using pynput
 
 ### Configuration
 
@@ -26,6 +27,25 @@ Settings stored in `~/.config/voice-notepad-v3/`:
 - Model selections
 - Cleanup prompt customization
 - UI preferences
+- Global hotkey bindings
+
+### Global Hotkeys
+
+The app supports global hotkeys that work even when the window is minimized or unfocused. Configure in Settings → Hotkeys tab.
+
+**Available Actions:**
+- **Start Recording** - Begin a new recording
+- **Stop Recording (discard)** - Stop and discard the current recording
+- **Stop & Transcribe** - Stop recording and send to AI for transcription
+
+**Recommended Keys:** F14-F20 (macro keys) are suggested to avoid conflicts with other applications. These keys are available on keyboards with programmable macro keys.
+
+**Supported Keys:**
+- F1-F20 (function keys)
+- Modifier combinations (Ctrl+, Alt+, Shift+, Super+)
+- Media keys (on supported keyboards)
+
+**Note:** On Wayland, global hotkeys work via XWayland compatibility layer.
 
 ### Supported AI Providers
 
@@ -76,6 +96,7 @@ Audio is compressed before upload:
 
 From the original concept notes:
 
+- [x] **Global hotkeys**: System-wide keyboard shortcuts (F14-F20 recommended)
 - [ ] **Cost tracking**: Track API spend (today/week/month)
 - [ ] **Auto-copy to clipboard**: Automatic clipboard copy after transcription
 - [ ] **Virtual input insertion**: Type transcription into any text field (Wayland challenge)

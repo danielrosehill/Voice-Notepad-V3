@@ -1,0 +1,9 @@
+Okay, let's jot down some notes for a context pipeline that I want to create for a client. The idea is to gather up context from things that they've written on the internet. There are a few questions regarding implementation that I kind of have to figure out for how to do this as efficiently as possible.
+
+So, it's going to be using Pinecone as the vector database storage. The first question I always get confused between: indexes, namespaces, and I think they have project level as well. So there's different levels of federacy.
+
+If I wanted to have something—the idea is basically this: you have a chatbot and the chatbot can retrieve, grounded its knowledge in sort of what the author has written over, let's say, the past year or two. I'm going to look for samples in that time period.
+
+So, I could—there's going to be text, which is I guess the easiest. There's going to be videos and podcast interviews, which are a little bit more tricky because those really involve a pipeline that we'd have to get a video, transcribe a video, and then if the—if it's like the author plus someone else, I guess it's best to preserve both sides of the conversation, but it would need to be diarized.
+
+So, what I'm thinking about, the first question really from a retrieval standpoint is: does it make sense to have different namespaces for different content types? So I might have articles, YouTube videos, podcasts so that the agent when it's being queried by the user and asked to give examples or looking for examples and grounding, does it make sense to actually have different namespaces for these different content types, or is there best better practice to just have one namespace for context and then maybe either use metadata or something else to delineate, or maybe that's not even important. That's the first sort of question for how to do this.

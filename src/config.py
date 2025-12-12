@@ -11,6 +11,24 @@ CONFIG_DIR = Path.home() / ".config" / "voice-notepad-v3"
 CONFIG_FILE = CONFIG_DIR / "config.json"
 
 
+# Available models per provider (model_id, display_name)
+GEMINI_MODELS = [
+    ("gemini-flash-latest", "Gemini Flash (Latest)"),
+    ("gemini-2.5-flash", "Gemini 2.5 Flash"),
+    ("gemini-2.5-flash-lite", "Gemini 2.5 Flash Lite (Budget)"),
+]
+
+OPENAI_MODELS = [
+    ("gpt-4o-audio-preview", "GPT-4o Audio Preview"),
+    ("gpt-4o-mini-audio-preview", "GPT-4o Mini Audio Preview"),
+]
+
+MISTRAL_MODELS = [
+    ("voxtral-small-latest", "Voxtral Small (Latest)"),
+    ("voxtral-mini-latest", "Voxtral Mini (Budget)"),
+]
+
+
 @dataclass
 class Config:
     """Application configuration."""
@@ -24,9 +42,9 @@ class Config:
     selected_provider: str = "gemini"
 
     # Model names per provider
-    gemini_model: str = "gemini-2.0-flash-lite"
+    gemini_model: str = "gemini-flash-latest"
     openai_model: str = "gpt-4o-audio-preview"
-    mistral_model: str = "voxtral-mini-latest"
+    mistral_model: str = "voxtral-small-latest"
 
     # Audio settings
     selected_microphone: str = ""
@@ -36,6 +54,12 @@ class Config:
     window_width: int = 500
     window_height: int = 600
     start_minimized: bool = False
+
+    # Hotkeys (global keyboard shortcuts)
+    # Supported keys: F14-F20 (macro keys), F1-F12, or modifier combinations
+    hotkey_start_recording: str = ""
+    hotkey_stop_recording: str = ""
+    hotkey_stop_and_transcribe: str = ""
 
     # Cleanup prompt
     cleanup_prompt: str = """Your task is to provide a cleaned transcription of the audio recorded by the user.

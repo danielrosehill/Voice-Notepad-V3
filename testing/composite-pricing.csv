@@ -1,0 +1,14 @@
+Provider,Model,Text Input (per 1M tokens),Text Output (per 1M tokens),Audio Input (per 1M tokens),Audio Input (per minute),Audio Tokens/sec,Notes
+Gemini,gemini-2.0-flash,$0.10,$0.40,$0.70,~$0.0013,32,Fixed 32 tok/sec rate
+Gemini,gemini-2.0-flash-lite,$0.075,$0.30,$0.075,~$0.00014,32,No separate audio pricing listed
+Gemini,gemini-2.5-flash,$0.30,$2.50,$1.00,~$0.0019,32,Includes thinking tokens
+Gemini,gemini-2.5-flash-lite,$0.10,$0.40,$0.30,~$0.00058,32,Most economical
+Gemini,gemini-2.5-pro,$1.25,$10.00,$1.25,~$0.0024,32,Unified multimodal pricing
+OpenAI,gpt-4o-audio-preview,$2.50,$10.00,$40.00,~$0.06,~10 (variable),Rate not officially documented
+OpenAI,gpt-4o-mini-audio-preview,$0.15,$0.60,$10.00,~$0.015,~10 (variable),Economy option
+OpenAI,gpt-audio,$2.50,$10.00,$32.00,~$0.048,~10 (variable),Current generation
+OpenAI,gpt-audio-mini,$0.60,$2.40,$10.00,~$0.015,~10 (variable),Current generation mini
+OpenAI,gpt-4o-transcribe,$2.50,$10.00,$6.00,~$0.006,N/A,Dedicated transcription model
+OpenAI,gpt-4o-mini-transcribe,$1.25,$5.00,$3.00,~$0.003,N/A,Economy transcription
+Mistral,voxtral-mini-latest,$0.04,$0.04,N/A,$0.001,N/A,Multimodal chat completions
+Mistral,voxtral-small-latest,$0.10,$0.30,N/A,$0.004,N/A,Higher quality multimodal

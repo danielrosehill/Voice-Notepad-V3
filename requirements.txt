@@ -4,4 +4,6 @@ google-genai>=1.0.0
 openai>=1.40.0
 mistralai>=1.0.0
 pydub>=0.25.1
+audioop-lts>=0.2.0; python_version>="3.13"
 markdown>=3.5.0
+pynput>=1.7.6

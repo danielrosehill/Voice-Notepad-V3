@@ -42,11 +42,69 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, QThread, pyqtSignal, QTimer
 from PyQt6.QtGui import QIcon, QAction, QFont, QClipboard, QShortcut, QKeySequence
 
-from .config import Config, load_config, save_config, load_env_keys
+from .config import (
+    Config, load_config, save_config, load_env_keys,
+    GEMINI_MODELS, OPENAI_MODELS, MISTRAL_MODELS,
+)
 from .audio_recorder import AudioRecorder
 from .transcription import get_client
 from .audio_processor import compress_audio_for_api
 from .markdown_widget import MarkdownTextWidget
+from .hotkeys import (
+    GlobalHotkeyListener,
+    HotkeyCapture,
+    SUGGESTED_HOTKEYS,
+    HOTKEY_DESCRIPTIONS,
+)
+
+
+class HotkeyEdit(QLineEdit):
+    """A QLineEdit that captures hotkey presses when focused."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setReadOnly(True)
+        self.setPlaceholderText("Click and press a key...")
+        self.capture: HotkeyCapture | None = None
+
+    def focusInEvent(self, event):
+        """Start capturing when focused."""
+        super().focusInEvent(event)
+        self.setStyleSheet("background-color: #fff3cd; border: 2px solid #ffc107;")
+        self.setPlaceholderText("Press a key combination...")
+
+        # Start key capture
+        self.capture = HotkeyCapture(self._on_key_captured)
+        self.capture.start()
+
+    def focusOutEvent(self, event):
+        """Stop capturing when focus is lost."""
+        super().focusOutEvent(event)
+        self.setStyleSheet("")
+        self.setPlaceholderText("Click and press a key...")
+
+        if self.capture:
+            self.capture.stop()
+            self.capture = None
+
+    def _on_key_captured(self, hotkey_str: str):
+        """Handle captured hotkey."""
+        # Update on main thread
+        QTimer.singleShot(0, lambda: self._set_hotkey(hotkey_str))
+
+    def _set_hotkey(self, hotkey_str: str):
+        """Set the hotkey text (called on main thread)."""
+        self.setText(hotkey_str.upper())
+        self.clearFocus()
+
+    def keyPressEvent(self, event):
+        """Handle key press - allow Escape to clear, Delete/Backspace to remove."""
+        if event.key() == Qt.Key.Key_Escape:
+            self.clearFocus()
+        elif event.key() in (Qt.Key.Key_Delete, Qt.Key.Key_Backspace):
+            self.clear()
+            self.clearFocus()
+        # Don't call super - we handle key capture separately
 
 
 class TranscriptionWorker(QThread):
@@ -115,13 +173,29 @@ class SettingsDialog(QDialog):
         models_tab = QWidget()
         models_layout = QFormLayout(models_tab)
 
-        self.gemini_model = QLineEdit(self.config.gemini_model)
+        self.gemini_model = QComboBox()
+        for model_id, display_name in GEMINI_MODELS:
+            self.gemini_model.addItem(display_name, model_id)
+        # Set current selection based on config
+        gemini_idx = self.gemini_model.findData(self.config.gemini_model)
+        if gemini_idx >= 0:
+            self.gemini_model.setCurrentIndex(gemini_idx)
         models_layout.addRow("Gemini Model:", self.gemini_model)
 
-        self.openai_model = QLineEdit(self.config.openai_model)
+        self.openai_model = QComboBox()
+        for model_id, display_name in OPENAI_MODELS:
+            self.openai_model.addItem(display_name, model_id)
+        openai_idx = self.openai_model.findData(self.config.openai_model)
+        if openai_idx >= 0:
+            self.openai_model.setCurrentIndex(openai_idx)
         models_layout.addRow("OpenAI Model:", self.openai_model)
 
-        self.mistral_model = QLineEdit(self.config.mistral_model)
+        self.mistral_model = QComboBox()
+        for model_id, display_name in MISTRAL_MODELS:
+            self.mistral_model.addItem(display_name, model_id)
+        mistral_idx = self.mistral_model.findData(self.config.mistral_model)
+        if mistral_idx >= 0:
+            self.mistral_model.setCurrentIndex(mistral_idx)
         models_layout.addRow("Mistral Model:", self.mistral_model)
 
         tabs.addTab(models_tab, "Models")
@@ -140,6 +214,44 @@ class SettingsDialog(QDialog):
         behavior_layout.addRow("Sample Rate:", self.sample_rate)
 
         tabs.addTab(behavior_tab, "Behavior")
+
+        # Hotkeys tab
+        hotkeys_tab = QWidget()
+        hotkeys_layout = QVBoxLayout(hotkeys_tab)
+
+        # Info label
+        info_label = QLabel(
+            "Configure global hotkeys that work even when the app is minimized.\n"
+            "F14-F20 (macro keys) are recommended to avoid conflicts with other apps.\n"
+            "Click a field and press a key to set. Press Delete/Backspace to clear."
+        )
+        info_label.setWordWrap(True)
+        info_label.setStyleSheet("color: #666; margin-bottom: 10px;")
+        hotkeys_layout.addWidget(info_label)
+
+        hotkeys_form = QFormLayout()
+
+        self.hotkey_start = HotkeyEdit()
+        self.hotkey_start.setText(self.config.hotkey_start_recording.upper())
+        hotkeys_form.addRow("Start Recording:", self.hotkey_start)
+
+        self.hotkey_stop = HotkeyEdit()
+        self.hotkey_stop.setText(self.config.hotkey_stop_recording.upper())
+        hotkeys_form.addRow("Stop Recording (discard):", self.hotkey_stop)
+
+        self.hotkey_stop_transcribe = HotkeyEdit()
+        self.hotkey_stop_transcribe.setText(self.config.hotkey_stop_and_transcribe.upper())
+        hotkeys_form.addRow("Stop && Transcribe:", self.hotkey_stop_transcribe)
+
+        hotkeys_layout.addLayout(hotkeys_form)
+
+        # Suggested hotkeys button
+        suggest_btn = QPushButton("Use Suggested (F14-F16)")
+        suggest_btn.clicked.connect(self._use_suggested_hotkeys)
+        hotkeys_layout.addWidget(suggest_btn)
+
+        hotkeys_layout.addStretch()
+        tabs.addTab(hotkeys_tab, "Hotkeys")
 
         # Prompt tab
         prompt_tab = QWidget()
@@ -163,16 +275,26 @@ class SettingsDialog(QDialog):
         btn_layout.addWidget(save_btn)
         layout.addLayout(btn_layout)
 
+    def _use_suggested_hotkeys(self):
+        """Fill in the suggested hotkeys (F14-F16)."""
+        self.hotkey_start.setText(SUGGESTED_HOTKEYS["start_recording"])
+        self.hotkey_stop.setText(SUGGESTED_HOTKEYS["stop_recording"])
+        self.hotkey_stop_transcribe.setText(SUGGESTED_HOTKEYS["stop_and_transcribe"])
+
     def save_settings(self):
         self.config.gemini_api_key = self.gemini_key.text()
         self.config.openai_api_key = self.openai_key.text()
         self.config.mistral_api_key = self.mistral_key.text()
-        self.config.gemini_model = self.gemini_model.text()
-        self.config.openai_model = self.openai_model.text()
-        self.config.mistral_model = self.mistral_model.text()
+        self.config.gemini_model = self.gemini_model.currentData()
+        self.config.openai_model = self.openai_model.currentData()
+        self.config.mistral_model = self.mistral_model.currentData()
         self.config.start_minimized = self.start_minimized.isChecked()
         self.config.sample_rate = int(self.sample_rate.currentText())
         self.config.cleanup_prompt = self.cleanup_prompt.toPlainText()
+        # Hotkeys (store lowercase for consistency)
+        self.config.hotkey_start_recording = self.hotkey_start.text().lower()
+        self.config.hotkey_stop_recording = self.hotkey_stop.text().lower()
+        self.config.hotkey_stop_and_transcribe = self.hotkey_stop_transcribe.text().lower()
         save_config(self.config)
         self.accept()
 
@@ -195,6 +317,7 @@ class MainWindow(QMainWindow):
         self.setup_tray()
         self.setup_timer()
         self.setup_shortcuts()
+        self.setup_global_hotkeys()
 
         # Start minimized if configured
         if self.config.start_minimized:
@@ -415,6 +538,55 @@ class MainWindow(QMainWindow):
         new_shortcut = QShortcut(QKeySequence("Ctrl+N"), self)
         new_shortcut.activated.connect(self.new_note)
 
+    def setup_global_hotkeys(self):
+        """Set up global hotkeys that work even when app is not focused."""
+        self.hotkey_listener = GlobalHotkeyListener()
+
+        # Register configured hotkeys
+        self._register_hotkeys()
+
+        # Start listening
+        self.hotkey_listener.start()
+
+    def _register_hotkeys(self):
+        """Register all configured hotkeys."""
+        # Use lambdas that post events to the main thread
+        if self.config.hotkey_start_recording:
+            self.hotkey_listener.register(
+                "start_recording",
+                self.config.hotkey_start_recording,
+                lambda: QTimer.singleShot(0, self._hotkey_start_recording)
+            )
+
+        if self.config.hotkey_stop_recording:
+            self.hotkey_listener.register(
+                "stop_recording",
+                self.config.hotkey_stop_recording,
+                lambda: QTimer.singleShot(0, self._hotkey_stop_recording)
+            )
+
+        if self.config.hotkey_stop_and_transcribe:
+            self.hotkey_listener.register(
+                "stop_and_transcribe",
+                self.config.hotkey_stop_and_transcribe,
+                lambda: QTimer.singleShot(0, self._hotkey_stop_and_transcribe)
+            )
+
+    def _hotkey_start_recording(self):
+        """Handle global hotkey for starting recording."""
+        if not self.recorder.is_recording:
+            self.toggle_recording()
+
+    def _hotkey_stop_recording(self):
+        """Handle global hotkey for stopping recording (discard)."""
+        if self.recorder.is_recording:
+            self.delete_recording()
+
+    def _hotkey_stop_and_transcribe(self):
+        """Handle global hotkey for stop and transcribe."""
+        if self.recorder.is_recording:
+            self.stop_and_transcribe()
+
     def toggle_pause_if_recording(self):
         """Toggle pause only if currently recording."""
         if self.recorder.is_recording:
@@ -629,6 +801,8 @@ class MainWindow(QMainWindow):
         if dialog.exec() == QDialog.DialogCode.Accepted:
             self.config = load_config()
             self.recorder.sample_rate = self.config.sample_rate
+            # Re-register hotkeys with new settings
+            self._register_hotkeys()
 
     def show_window(self):
         """Show and raise the window."""
@@ -646,6 +820,7 @@ class MainWindow(QMainWindow):
 
     def quit_app(self):
         """Quit the application."""
+        self.hotkey_listener.stop()
         self.recorder.cleanup()
         save_config(self.config)
         QApplication.quit()
