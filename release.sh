@@ -2,15 +2,36 @@
 # Release script for Voice Notepad
 # - Increments version (patch by default)
 # - Takes screenshots
-# - Builds .deb package
+# - Builds packages (all formats for public release, or deb-only for personal use)
 #
-# Usage: ./release.sh [major|minor|patch]
+# Usage: ./release.sh [major|minor|patch] [--deb-only]
 #   Default: patch (1.3.0 -> 1.3.1)
+#   --deb-only: Only build Debian package (skip AppImage/tarball)
 
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
+
+# Parse arguments
+BUMP_TYPE="patch"
+DEB_ONLY=false
+
+for arg in "$@"; do
+    case $arg in
+        major|minor|patch)
+            BUMP_TYPE="$arg"
+            ;;
+        --deb-only)
+            DEB_ONLY=true
+            ;;
+        *)
+            echo "Unknown argument: $arg"
+            echo "Usage: ./release.sh [major|minor|patch] [--deb-only]"
+            exit 1
+            ;;
+    esac
+done
 
 # Get current version from pyproject.toml
 CURRENT_VERSION=$(grep -Po '(?<=^version = ")[^"]+' pyproject.toml)
@@ -18,9 +39,6 @@ echo "Current version: $CURRENT_VERSION"
 
 # Parse version
 IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT_VERSION"
-
-# Determine bump type
-BUMP_TYPE="${1:-patch}"
 
 case "$BUMP_TYPE" in
     major)
@@ -35,17 +53,17 @@ case "$BUMP_TYPE" in
     patch)
         PATCH=$((PATCH + 1))
         ;;
-    *)
-        echo "Invalid bump type: $BUMP_TYPE"
-        echo "Usage: ./release.sh [major|minor|patch]"
-        exit 1
-        ;;
 esac
 
 NEW_VERSION="$MAJOR.$MINOR.$PATCH"
 VERSION_UNDERSCORE="${MAJOR}_${MINOR}_${PATCH}"
 
 echo "New version: $NEW_VERSION"
+if [ "$DEB_ONLY" = true ]; then
+    echo "Mode: Debian only (personal use)"
+else
+    echo "Mode: Full release (all formats)"
+fi
 echo ""
 
 # Update version in pyproject.toml
@@ -61,11 +79,27 @@ echo "=== Taking Screenshots ==="
 ./take-screenshots.sh
 
 echo ""
-echo "=== Building Package ==="
-./build.sh "$NEW_VERSION"
+echo "=== Building Packages ==="
+
+if [ "$DEB_ONLY" = true ]; then
+    # Personal use: just build the deb
+    ./build.sh "$NEW_VERSION"
+else
+    # Public release: build all formats
+    ./build-all.sh "$NEW_VERSION"
+fi
 
 echo ""
 echo "=== Release Complete ==="
 echo "Version: $NEW_VERSION"
 echo "Screenshots: screenshots/$VERSION_UNDERSCORE/"
-echo "Package: dist/voice-notepad_${NEW_VERSION}_amd64.deb"
+
+if [ "$DEB_ONLY" = true ]; then
+    echo "Package: dist/voice-notepad_${NEW_VERSION}_amd64.deb"
+else
+    echo "Packages:"
+    echo "  - dist/voice-notepad_${NEW_VERSION}_amd64.deb"
+    echo "  - dist/Voice_Notepad-${NEW_VERSION}-x86_64.AppImage"
+    echo "  - dist/voice-notepad-${NEW_VERSION}-linux-x86_64.tar.gz"
+    echo "  - dist/voice-notepad-${NEW_VERSION}-SHA256SUMS.txt"
+fi

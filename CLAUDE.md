@@ -19,8 +19,12 @@ Voice-Notepad-V3/
 │   └── requirements.txt   # Python dependencies
 ├── planning/              # Planning notes and API docs
 ├── build.sh               # Build .deb package
+├── build-appimage.sh      # Build AppImage
+├── build-tarball.sh       # Build portable tarball
+├── build-all.sh           # Build all formats
+├── build-install.sh       # Build .deb and install
 ├── install.sh             # Install/upgrade from .deb
-├── build-install.sh       # Build and install in one step
+├── release.sh             # Version bump + screenshots + build
 ├── run.sh                 # Run for development
 └── dist/                  # Built packages (gitignored)
 ```
@@ -156,31 +160,116 @@ Audio is compressed before upload:
 
 ## Building & Packaging
 
-Three scripts for building and installing:
+### Quick Reference
 
-### Build Only
+| Script | Purpose |
+|--------|---------|
+| `./build.sh` | Build Debian package only |
+| `./build-appimage.sh` | Build AppImage only |
+| `./build-tarball.sh` | Build portable tarball only |
+| `./build-all.sh` | Build all formats + checksums |
+| `./install.sh` | Install latest .deb from dist/ |
+| `./build-install.sh` | Build .deb and install |
+| `./release.sh` | Bump version + screenshots + build |
+
+### Multi-Format Release Build
 ```bash
-./build.sh [VERSION]
-# Example: ./build.sh 1.2.0
+./build-all.sh [VERSION]
 ```
-Builds `.deb` package to `dist/voice-notepad_VERSION_amd64.deb`.
+Builds all distribution formats:
+- `dist/voice-notepad_VERSION_amd64.deb` - Debian/Ubuntu package
+- `dist/Voice_Notepad-VERSION-x86_64.AppImage` - Universal Linux (runs anywhere)
+- `dist/voice-notepad-VERSION-linux-x86_64.tar.gz` - Portable archive
+- `dist/voice-notepad-VERSION-SHA256SUMS.txt` - Checksums
 
-### Install/Upgrade Only
+Options:
+```bash
+./build-all.sh 1.3.0              # Build all formats
+./build-all.sh --deb              # Only Debian
+./build-all.sh --appimage         # Only AppImage
+./build-all.sh --tarball          # Only tarball
+./build-all.sh 1.3.0 --checksums  # Specific format + checksums
+```
+
+### Release Script
+```bash
+./release.sh [major|minor|patch] [--deb-only]
+```
+Full release workflow:
+1. Bumps version in `pyproject.toml` and `build.sh`
+2. Takes screenshots
+3. Builds packages (all formats, or deb-only with `--deb-only`)
+
+Examples:
+```bash
+./release.sh              # Patch release, all formats
+./release.sh minor        # Minor release, all formats
+./release.sh --deb-only   # Patch release, Debian only (personal use)
+```
+
+### Individual Build Scripts
+
+**Debian (.deb)**
+```bash
+./build.sh [VERSION] [--fast]
+```
+- `--fast`: Skip compression for faster dev builds
+
+**AppImage**
+```bash
+./build-appimage.sh [VERSION]
+```
+- Downloads `appimagetool` automatically if needed
+- Self-contained, runs on any Linux distribution
+
+**Tarball**
+```bash
+./build-tarball.sh [VERSION]
+```
+- Includes `install.sh` for optional system integration
+- Portable, can be extracted and run anywhere
+
+### Install/Upgrade
 ```bash
 ./install.sh
 ```
-Installs the latest package from `dist/` (requires sudo).
+Installs the latest .deb package from `dist/` (requires sudo).
 
 ### Build and Install
 ```bash
 ./build-install.sh [VERSION]
 ```
-Does both in one step - builds the package then installs it.
+Builds .deb and installs in one step.
 
-**Package details:**
-- Bundles Python venv with all dependencies in `/opt/voice-notepad/`
-- Creates launcher script, desktop entry, and icon
-- System dependencies: python3, python3-venv, ffmpeg, portaudio19-dev
+### Package Details
+
+**All formats include:**
+- Bundled Python venv with all dependencies
+- Launcher script with Wayland support
+- Desktop entry and icon
+
+**System dependencies:**
+- python3, python3-venv, ffmpeg, portaudio19-dev
+
+### CI/CD (GitHub Actions)
+
+Releases are built automatically in the cloud via GitHub Actions.
+
+**Trigger a release:**
+```bash
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+Or manually via GitHub Actions → "Build Release" → "Run workflow"
+
+**What gets built:**
+- Linux: .deb, AppImage, tarball (Ubuntu runner)
+- Windows: .zip with PyInstaller bundle (Windows runner)
+- SHA256 checksums
+- GitHub Release with all artifacts attached
+
+The workflow is defined in `.github/workflows/release.yml`.
 
 ## Cost Tracking
 

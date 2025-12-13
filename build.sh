@@ -13,7 +13,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
 # Parse arguments
-VERSION="1.3.0"
+VERSION="1.0.0"
 FAST_MODE=false
 
 for arg in "$@"; do
