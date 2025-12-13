@@ -63,6 +63,7 @@ from .cost_tracker import get_tracker
 from .history_widget import HistoryWidget
 from .cost_widget import CostWidget
 from .analysis_widget import AnalysisWidget
+from .about_widget import AboutWidget
 from .audio_feedback import get_feedback
 
 
@@ -579,6 +580,10 @@ class MainWindow(QMainWindow):
         self.analysis_widget = AnalysisWidget()
         self.tabs.addTab(self.analysis_widget, "Analysis")
 
+        # About tab
+        self.about_widget = AboutWidget()
+        self.tabs.addTab(self.about_widget, "About")
+
         # Refresh data when switching tabs
         self.tabs.currentChanged.connect(self.on_tab_changed)
 
@@ -588,10 +593,21 @@ class MainWindow(QMainWindow):
         """Set up system tray icon."""
         self.tray = QSystemTrayIcon(self)
 
-        # Create a simple icon (you can replace with a proper icon file)
-        icon = self.style().standardIcon(self.style().StandardPixmap.SP_MediaVolume)
-        self.tray.setIcon(icon)
-        self.setWindowIcon(icon)
+        # Set up icons for different states
+        # Idle: notepad/text editor icon (common in KDE themes)
+        self._tray_icon_idle = QIcon.fromTheme(
+            "accessories-text-editor",
+            QIcon.fromTheme("text-x-generic",
+                self.style().standardIcon(self.style().StandardPixmap.SP_FileDialogDetailedView))
+        )
+        # Recording: red record icon
+        self._tray_icon_recording = QIcon.fromTheme(
+            "media-record",
+            self.style().standardIcon(self.style().StandardPixmap.SP_DialogNoButton)
+        )
+
+        self.tray.setIcon(self._tray_icon_idle)
+        self.setWindowIcon(self._tray_icon_idle)
 
         # Tray menu
         menu = QMenu()
@@ -763,12 +779,14 @@ class MainWindow(QMainWindow):
 
     def on_tab_changed(self, index: int):
         """Handle tab change - refresh data in the selected tab."""
+        # Tabs: 0=Record, 1=History, 2=Cost, 3=Analysis, 4=About
         if index == 1:  # History tab
             self.history_widget.refresh()
         elif index == 2:  # Cost tab
             self.cost_widget.refresh()
         elif index == 3:  # Analysis tab
             self.analysis_widget.refresh()
+        # About tab (index 4) doesn't need refresh
 
     def on_history_transcription_selected(self, text: str):
         """Handle transcription selected from history - put in editor."""
@@ -901,6 +919,8 @@ class MainWindow(QMainWindow):
             self.status_label.setText("Recording...")
             self.status_label.setStyleSheet("color: #dc3545; font-weight: bold;")
             self.timer.start(100)
+            # Update tray icon to recording state
+            self.tray.setIcon(self._tray_icon_recording)
 
     def toggle_pause(self):
         """Toggle pause state."""
@@ -1135,6 +1155,7 @@ class MainWindow(QMainWindow):
         """Reset UI to initial state."""
         self.record_btn.setText("● Record")
         self.record_btn.setStyleSheet(self._record_btn_idle_style)
+        self.record_btn.setEnabled(True)
         self.pause_btn.setText("Pause")
         self.pause_btn.setEnabled(False)
         self.stop_btn.setEnabled(False)
@@ -1142,6 +1163,8 @@ class MainWindow(QMainWindow):
         self.duration_label.setText("0:00")
         self.status_label.setText("Ready")
         self.status_label.setStyleSheet("color: #666;")
+        # Restore idle tray icon
+        self.tray.setIcon(self._tray_icon_idle)
 
     def delete_recording(self):
         """Delete current recording."""

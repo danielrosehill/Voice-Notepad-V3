@@ -10,58 +10,11 @@ from PyQt6.QtWidgets import (
     QTableWidgetItem,
     QHeaderView,
     QGroupBox,
-    QGridLayout,
 )
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFont
 
 from .database import get_db
-
-
-class CostCard(QWidget):
-    """A card widget displaying a cost metric."""
-
-    def __init__(self, title: str, parent=None):
-        super().__init__(parent)
-        self.title = title
-        self.setup_ui()
-
-    def setup_ui(self):
-        layout = QVBoxLayout(self)
-        layout.setSpacing(4)
-        layout.setContentsMargins(12, 12, 12, 12)
-
-        # Title
-        title_label = QLabel(self.title)
-        title_label.setStyleSheet("color: #666; font-size: 11px;")
-        title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(title_label)
-
-        # Cost value
-        self.cost_label = QLabel("$0.0000")
-        self.cost_label.setFont(QFont("Sans", 20, QFont.Weight.Bold))
-        self.cost_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(self.cost_label)
-
-        # Count
-        self.count_label = QLabel("0 transcriptions")
-        self.count_label.setStyleSheet("color: #888; font-size: 10px;")
-        self.count_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(self.count_label)
-
-        # Style the card
-        self.setStyleSheet("""
-            CostCard {
-                background-color: #f8f9fa;
-                border: 1px solid #dee2e6;
-                border-radius: 8px;
-            }
-        """)
-
-    def set_values(self, cost: float, count: int):
-        """Update the displayed values."""
-        self.cost_label.setText(f"~${cost:.4f}")
-        self.count_label.setText(f"{count} transcription{'s' if count != 1 else ''}")
 
 
 class CostWidget(QWidget):
@@ -90,28 +43,17 @@ class CostWidget(QWidget):
 
         layout.addLayout(header)
 
-        # Time period cards
-        time_group = QGroupBox("Cost by Time Period")
-        time_layout = QGridLayout(time_group)
-        time_layout.setSpacing(12)
-
-        self.this_hour_card = CostCard("This Hour")
-        time_layout.addWidget(self.this_hour_card, 0, 0)
-
-        self.last_hour_card = CostCard("Last Hour")
-        time_layout.addWidget(self.last_hour_card, 0, 1)
-
-        self.today_card = CostCard("Today")
-        time_layout.addWidget(self.today_card, 1, 0)
-
-        self.this_week_card = CostCard("This Week")
-        time_layout.addWidget(self.this_week_card, 1, 1)
-
-        self.all_time_card = CostCard("All Time")
-        self.all_time_card.cost_label.setStyleSheet("color: #007bff;")
-        time_layout.addWidget(self.all_time_card, 2, 0, 1, 2)
-
-        layout.addWidget(time_group)
+        # Future feature notice
+        notice = QLabel(
+            "Detailed cost breakdown by time period is planned for a future release.\n"
+            "The tables below show cumulative usage since tracking began."
+        )
+        notice.setStyleSheet(
+            "color: #0c5460; background-color: #d1ecf1; border: 1px solid #bee5eb; "
+            "border-radius: 4px; padding: 10px; font-size: 12px;"
+        )
+        notice.setWordWrap(True)
+        layout.addWidget(notice)
 
         # Provider breakdown table
         provider_group = QGroupBox("Cost by Provider")
@@ -124,7 +66,7 @@ class CostWidget(QWidget):
         self.provider_table.setAlternatingRowColors(True)
         self.provider_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.provider_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
-        self.provider_table.setMaximumHeight(120)
+        self.provider_table.setMaximumHeight(150)
         provider_layout.addWidget(self.provider_table)
 
         layout.addWidget(provider_group)
@@ -146,7 +88,7 @@ class CostWidget(QWidget):
 
         # Warning about estimates
         note_label = QLabel(
-            "⚠ All costs shown are estimates based on token usage and may not reflect actual billing. "
+            "All costs shown are estimates based on token usage and may not reflect actual billing. "
             "Audio token pricing varies by provider. Check your provider's dashboard for precise costs."
         )
         note_label.setWordWrap(True)
@@ -159,22 +101,6 @@ class CostWidget(QWidget):
     def refresh(self):
         """Refresh all cost data."""
         db = get_db()
-
-        # Time period costs
-        this_hour = db.get_cost_this_hour()
-        self.this_hour_card.set_values(this_hour["total_cost"], this_hour["count"])
-
-        last_hour = db.get_cost_last_hour()
-        self.last_hour_card.set_values(last_hour["total_cost"], last_hour["count"])
-
-        today = db.get_cost_today()
-        self.today_card.set_values(today["total_cost"], today["count"])
-
-        this_week = db.get_cost_this_week()
-        self.this_week_card.set_values(this_week["total_cost"], this_week["count"])
-
-        all_time = db.get_cost_all_time()
-        self.all_time_card.set_values(all_time["total_cost"], all_time["count"])
 
         # Provider breakdown
         providers = db.get_cost_by_provider()

@@ -1,6 +1,13 @@
 # Voice Notepad
+![alt text](screenshots/v1/image.png)
 
-A PyQt6 desktop application for voice recording with AI-powered transcription and cleanup. Send audio directly to multimodal AI models (Gemini, OpenAI, Mistral) which transcribe and clean up your speech in a single pass—no separate ASR step required.
+Notepad app that offers a variety of multimodal audio models for single operation transcription and light text cleanup (as opposed to ASR + LLM combination).
+
+Supported backends:
+
+- Gemini (default): `flash-latest` is default preset with options for Flash Lite as cost-effective alternative 
+- OpenAI 
+- Voxtral (by Mistral)
 
 ## How It Works
 
