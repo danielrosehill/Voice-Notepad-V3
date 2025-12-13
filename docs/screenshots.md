@@ -4,7 +4,9 @@ Current screenshots from version **1.3.0**.
 
 ## Overview
 
-![Voice Notepad Overview](../screenshots/1_3_0/composite.png)
+![Record and History](../screenshots/1_3_0/composite-1.png)
+
+![Cost and Analysis](../screenshots/1_3_0/composite-2.png)
 
 ## Main Tabs
 

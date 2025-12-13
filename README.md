@@ -1,6 +1,6 @@
 # Voice Notepad
 
-![Voice Notepad](screenshots/1_3_0/composite.png)
+![Voice Notepad](screenshots/1_3_0/composite-1.png)
 
 Notepad app that offers a variety of multimodal audio models for single operation transcription and light text cleanup (as opposed to ASR + LLM combination).
 
@@ -54,6 +54,14 @@ This single-pass approach:
 - **VAD (Voice Activity Detection)**: Optional silence removal before API upload (reduces cost)
 - **Audio archival**: Optional Opus archival of recordings
 - **Local configuration**: Settings stored in `~/.config/voice-notepad-v3/`
+
+## Screenshots
+
+![Record and History](screenshots/1_3_0/composite-1.png)
+*Record tab and History tab*
+
+![Cost and Analysis](screenshots/1_3_0/composite-2.png)
+*Cost tracking and Analysis tabs*
 
 ## Installation
 

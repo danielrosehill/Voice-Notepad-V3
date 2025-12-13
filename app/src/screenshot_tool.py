@@ -109,12 +109,18 @@ def take_screenshots(output_dir: Path, window):
 
     dialog.close()
 
-    # Create composite grid of main tabs (record, history, cost, analysis)
-    key_tabs = [main_tabs[0], main_tabs[1], main_tabs[2], main_tabs[3]]  # record, history, cost, analysis
-    composite_path = output_dir / "composite.png"
-    print(f"  Creating: composite.png")
-    create_grid_composite(key_tabs, composite_path, cols=2)
-    screenshots.append(composite_path)
+    # Create two composite strips (2 images side by side each)
+    # Composite 1: Record + History
+    composite1_path = output_dir / "composite-1.png"
+    print(f"  Creating: composite-1.png (record + history)")
+    create_grid_composite([main_tabs[0], main_tabs[1]], composite1_path, cols=2)
+    screenshots.append(composite1_path)
+
+    # Composite 2: Cost + Analysis
+    composite2_path = output_dir / "composite-2.png"
+    print(f"  Creating: composite-2.png (cost + analysis)")
+    create_grid_composite([main_tabs[2], main_tabs[3]], composite2_path, cols=2)
+    screenshots.append(composite2_path)
 
     return screenshots
 
