@@ -56,13 +56,40 @@ This single-pass approach:
 
 ## Installation
 
+### Quick Start
+
 ```bash
+# Clone the repository
+git clone https://github.com/danielrosehill/Voice-Notepad.git
+cd Voice-Notepad
+
+# Run the app
+./run.sh
+```
+
+The `run.sh` script automatically creates a virtual environment and installs dependencies.
+
+### From Source (Manual)
+
+```bash
+cd app
+
 # Create virtual environment
-uv venv .venv
+python3 -m venv .venv
 source .venv/bin/activate
 
 # Install dependencies
-uv pip install -r requirements.txt
+pip install -r requirements.txt
+
+# Run
+python -m src.main
+```
+
+### System Dependencies
+
+```bash
+# Ubuntu/Debian
+sudo apt install python3 python3-venv ffmpeg portaudio19-dev
 ```
 
 ## Configuration
@@ -161,25 +188,20 @@ The Cost tab provides detailed API usage tracking. **OpenRouter is recommended**
 ## Project Structure
 
 ```
-Voice-Notepad-V3/
-├── src/                    # Source code
-│   ├── main.py            # Main application
-│   ├── audio_recorder.py  # Audio recording
-│   ├── audio_processor.py # Audio compression
-│   ├── transcription.py   # API clients
-│   ├── markdown_widget.py # Markdown display
-│   ├── hotkeys.py         # Global hotkey handling
-│   └── config.py          # Configuration
-├── planning/               # Development planning
-│   ├── apiref/            # API reference docs
-│   └── idea-notes/        # Original concept notes
-├── scripts/                # Build scripts
-│   ├── build-deb.sh       # Build .deb package
-│   └── update-build.sh    # Incremental build with version bump
-├── screenshots/            # Screenshots
-├── requirements.txt
-├── pyproject.toml
-├── run.sh
+Voice-Notepad/
+├── app/
+│   ├── src/               # Python source code
+│   │   ├── main.py        # Main application
+│   │   ├── audio_recorder.py
+│   │   ├── transcription.py
+│   │   └── ...
+│   └── requirements.txt
+├── docs/                  # Documentation (MkDocs)
+├── screenshots/
+├── build.sh               # Build .deb package
+├── install.sh             # Install from .deb
+├── run.sh                 # Run for development
+├── mkdocs.yml             # Documentation config
 └── README.md
 ```
 
@@ -190,24 +212,31 @@ Voice-Notepad-V3/
 Build a Debian package for distribution:
 
 ```bash
-# First build
-./scripts/build-deb.sh
+# Build the package
+./build.sh
 
-# Incremental build (bumps patch version)
-./scripts/update-build.sh
+# Install the package
+./install.sh
 
-# Bump minor version and build
-./scripts/update-build.sh minor
-
-# Rebuild without version bump
-./scripts/update-build.sh none
+# Or build and install in one step
+./build-install.sh
 ```
 
 Build dependencies: `sudo apt install dpkg fakeroot`
 
-Install the built package:
+### Documentation Site
+
+Build and serve the documentation locally:
+
 ```bash
-sudo apt install ./dist/voice-notepad_*.deb
+# Install MkDocs with Material theme
+pip install mkdocs-material
+
+# Serve locally
+mkdocs serve
+
+# Build static site
+mkdocs build
 ```
 
 ## Requirements
