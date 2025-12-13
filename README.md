@@ -1,15 +1,30 @@
 # Voice Notepad
 
+### Platforms
+
+[![Windows](https://img.shields.io/badge/Windows-0078D6?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/danielrosehill/Voice-Notepad/releases)
+[![Linux](https://img.shields.io/badge/Linux-FCC624?style=for-the-badge&logo=linux&logoColor=black)](https://github.com/danielrosehill/Voice-Notepad/releases)
+[![Debian](https://img.shields.io/badge/Debian-A81D33?style=for-the-badge&logo=debian&logoColor=white)](https://github.com/danielrosehill/Voice-Notepad/releases)
+
+### Supported AI Providers
+
+[![OpenRouter](https://img.shields.io/badge/OpenRouter-6366F1?style=for-the-badge&logo=openai&logoColor=white)](https://openrouter.ai/)
+[![Google Gemini](https://img.shields.io/badge/Google%20Gemini-4285F4?style=for-the-badge&logo=google&logoColor=white)](https://ai.google.dev/)
+[![OpenAI](https://img.shields.io/badge/OpenAI-412991?style=for-the-badge&logo=openai&logoColor=white)](https://openai.com/)
+[![Mistral](https://img.shields.io/badge/Mistral%20AI-FF7000?style=for-the-badge&logo=mistral&logoColor=white)](https://mistral.ai/)
+
+### Downloads
+
+[![Windows EXE](https://img.shields.io/badge/Download-Windows%20EXE-0078D6?style=flat-square&logo=windows)](https://github.com/danielrosehill/Voice-Notepad/releases)
+[![AppImage](https://img.shields.io/badge/Download-AppImage-FCC624?style=flat-square&logo=linux&logoColor=black)](https://github.com/danielrosehill/Voice-Notepad/releases)
+[![Debian Package](https://img.shields.io/badge/Download-DEB-A81D33?style=flat-square&logo=debian)](https://github.com/danielrosehill/Voice-Notepad/releases)
+[![Tarball](https://img.shields.io/badge/Download-TAR.GZ-2D2D2D?style=flat-square&logo=gnu)](https://github.com/danielrosehill/Voice-Notepad/releases)
+
+---
+
 ![Voice Notepad](screenshots/1_3_0/composite-1.png)
 
 Notepad app that offers a variety of multimodal audio models for single operation transcription and light text cleanup (as opposed to ASR + LLM combination).
-
-Supported backends:
-
-- **OpenRouter** (recommended): Access multiple models (Gemini, GPT-4o, Voxtral) through a single API key with accurate cost tracking
-- **Gemini**: Direct Google AI access, `flash-latest` is default preset
-- **OpenAI**: Direct OpenAI access for GPT-4o audio models
-- **Mistral/Voxtral**: Direct Mistral access for Voxtral models
 
 ## Scope
 
@@ -247,6 +262,11 @@ mkdocs serve
 # Build static site
 mkdocs build
 ```
+
+## Documentation
+
+- **[User Manual (PDF)](docs/manuals/Voice-Notepad-User-Manual-v1.pdf)** - Comprehensive guide with screenshots
+- **[Online Documentation](docs/)** - MkDocs-based documentation
 
 ## Requirements
 
