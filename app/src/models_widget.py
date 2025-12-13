@@ -4,10 +4,10 @@ from PyQt6.QtWidgets import (
     QWidget,
     QVBoxLayout,
     QLabel,
-    QGroupBox,
     QScrollArea,
     QFrame,
     QHBoxLayout,
+    QTabWidget,
 )
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFont
@@ -105,7 +105,7 @@ MODEL_INFO = {
 
 
 class ModelsWidget(QWidget):
-    """Widget showing available models grouped by provider."""
+    """Widget showing available models grouped by provider in tabs."""
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -113,145 +113,219 @@ class ModelsWidget(QWidget):
 
     def setup_ui(self):
         main_layout = QVBoxLayout(self)
-        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setContentsMargins(12, 12, 12, 12)
+        main_layout.setSpacing(12)
 
-        # Scroll area for content
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setFrameShape(QFrame.Shape.NoFrame)
-
-        content = QWidget()
-        layout = QVBoxLayout(content)
-        layout.setSpacing(12)
-        layout.setContentsMargins(12, 12, 12, 12)
+        # White background container
+        container = QFrame()
+        container.setStyleSheet("""
+            QFrame {
+                background-color: white;
+                border-radius: 8px;
+            }
+        """)
+        container_layout = QVBoxLayout(container)
+        container_layout.setContentsMargins(16, 16, 16, 16)
+        container_layout.setSpacing(12)
 
         # Header
         title = QLabel("Available Models")
         title.setFont(QFont("Sans", 14, QFont.Weight.Bold))
-        layout.addWidget(title)
+        title.setStyleSheet("color: #333;")
+        container_layout.addWidget(title)
 
         intro = QLabel(
             "Voice Notepad supports multimodal AI models that can process audio directly. "
             "Select your preferred provider and model in the Record tab."
         )
         intro.setWordWrap(True)
-        intro.setStyleSheet("color: #666; font-size: 11px; margin-bottom: 10px;")
-        layout.addWidget(intro)
+        intro.setStyleSheet("color: #666; font-size: 11px;")
+        container_layout.addWidget(intro)
 
-        # OpenRouter models (default provider)
-        openrouter_group = self._create_provider_group(
-            "OpenRouter (Recommended)",
-            OPENROUTER_MODELS,
-            "https://openrouter.ai/models?fmt=cards&input_modalities=audio",
-            "Unified API for multiple providers. Access Gemini, GPT-4o, and Voxtral "
-            "through a single API key. Flexible model switching without changing providers."
-        )
-        layout.addWidget(openrouter_group)
+        # Tier legend (horizontal)
+        legend_widget = QWidget()
+        legend_layout = QHBoxLayout(legend_widget)
+        legend_layout.setContentsMargins(0, 4, 0, 8)
+        legend_layout.setSpacing(16)
 
-        # Gemini models
-        gemini_group = self._create_provider_group(
-            "Google Gemini",
-            GEMINI_MODELS,
-            "https://ai.google.dev/gemini-api/docs/models",
-            "Multimodal models with native audio support. 'gemini-flash-latest' is a dynamic "
-            "endpoint that always points to Google's latest Flash model."
-        )
-        layout.addWidget(gemini_group)
-
-        # OpenAI models
-        openai_group = self._create_provider_group(
-            "OpenAI",
-            OPENAI_MODELS,
-            "https://platform.openai.com/docs/models",
-            "GPT models with audio understanding capabilities via the Chat Completions API."
-        )
-        layout.addWidget(openai_group)
-
-        # Mistral models
-        mistral_group = self._create_provider_group(
-            "Mistral AI",
-            MISTRAL_MODELS,
-            "https://docs.mistral.ai/capabilities/audio/",
-            "Voxtral models designed for audio transcription and understanding."
-        )
-        layout.addWidget(mistral_group)
-
-        # Tier legend
-        legend_group = QGroupBox("Model Tiers")
-        legend_layout = QVBoxLayout(legend_group)
+        legend_label = QLabel("<b>Tiers:</b>")
+        legend_label.setStyleSheet("color: #333; font-size: 11px;")
+        legend_layout.addWidget(legend_label)
 
         tiers = [
-            ("Budget", "#28a745", "Lower cost, suitable for most transcription tasks"),
-            ("Standard", "#007bff", "Balanced performance and cost"),
-            ("Premium", "#6f42c1", "Highest capability, best for complex content"),
+            ("Budget", "#28a745", "Lower cost"),
+            ("Standard", "#007bff", "Balanced"),
+            ("Premium", "#6f42c1", "Highest capability"),
         ]
 
         for tier_name, color, description in tiers:
-            tier_row = QHBoxLayout()
-            tier_label = QLabel(f"<span style='color: {color}; font-weight: bold;'>{tier_name}</span>")
-            tier_label.setFixedWidth(70)
-            tier_row.addWidget(tier_label)
-            tier_desc = QLabel(description)
-            tier_desc.setStyleSheet("color: #666; font-size: 11px;")
-            tier_row.addWidget(tier_desc)
-            tier_row.addStretch()
-            legend_layout.addLayout(tier_row)
+            tier_label = QLabel(
+                f"<span style='color: {color};'>●</span> "
+                f"<span style='color: #333;'>{tier_name}</span> "
+                f"<span style='color: #888;'>({description})</span>"
+            )
+            tier_label.setStyleSheet("font-size: 11px;")
+            legend_layout.addWidget(tier_label)
 
-        layout.addWidget(legend_group)
+        legend_layout.addStretch()
+        container_layout.addWidget(legend_widget)
 
-        # Note about dynamic endpoints
+        # Tabbed interface for providers
+        tabs = QTabWidget()
+        tabs.setStyleSheet("""
+            QTabWidget::pane {
+                border: 1px solid #ddd;
+                border-radius: 4px;
+                background: white;
+            }
+            QTabBar::tab {
+                background: #f5f5f5;
+                border: 1px solid #ddd;
+                border-bottom: none;
+                padding: 8px 16px;
+                margin-right: 2px;
+                border-top-left-radius: 4px;
+                border-top-right-radius: 4px;
+            }
+            QTabBar::tab:selected {
+                background: white;
+                border-bottom: 1px solid white;
+                margin-bottom: -1px;
+            }
+            QTabBar::tab:hover:!selected {
+                background: #e8e8e8;
+            }
+        """)
+
+        # Add provider tabs
+        tabs.addTab(
+            self._create_provider_tab(
+                OPENROUTER_MODELS,
+                "https://openrouter.ai/models?fmt=cards&input_modalities=audio",
+                "Unified API for multiple providers. Access Gemini, GPT-4o, and Voxtral "
+                "through a single API key. Flexible model switching without changing providers."
+            ),
+            "OpenRouter"
+        )
+
+        tabs.addTab(
+            self._create_provider_tab(
+                GEMINI_MODELS,
+                "https://ai.google.dev/gemini-api/docs/models",
+                "Multimodal models with native audio support. 'gemini-flash-latest' is a dynamic "
+                "endpoint that always points to Google's latest Flash model."
+            ),
+            "Gemini"
+        )
+
+        tabs.addTab(
+            self._create_provider_tab(
+                OPENAI_MODELS,
+                "https://platform.openai.com/docs/models",
+                "GPT models with audio understanding capabilities via the Chat Completions API."
+            ),
+            "OpenAI"
+        )
+
+        tabs.addTab(
+            self._create_provider_tab(
+                MISTRAL_MODELS,
+                "https://docs.mistral.ai/capabilities/audio/",
+                "Voxtral models designed for audio transcription and understanding."
+            ),
+            "Mistral"
+        )
+
+        container_layout.addWidget(tabs)
+
+        # Info note about local storage
         note = QLabel(
-            "<b>Note:</b> Dynamic endpoints (like 'gemini-flash-latest') automatically use "
-            "the newest model version. This means capabilities and pricing may change over time."
+            "<b>Note:</b> This model list is stored locally and may be periodically updated. "
+            "Models can be manually updated in the application configuration if new models "
+            "become available from providers."
         )
         note.setWordWrap(True)
         note.setStyleSheet(
-            "background-color: #fff3cd; border: 1px solid #ffc107; "
-            "border-radius: 4px; padding: 8px; font-size: 11px; margin-top: 10px;"
+            "background-color: #e7f3ff; border: 1px solid #b6d4fe; "
+            "border-radius: 4px; padding: 8px; font-size: 11px; color: #084298;"
         )
-        layout.addWidget(note)
+        container_layout.addWidget(note)
 
-        # Spacer
-        layout.addStretch()
+        main_layout.addWidget(container)
 
-        scroll.setWidget(content)
-        main_layout.addWidget(scroll)
-
-    def _create_provider_group(
+    def _create_provider_tab(
         self,
-        provider_name: str,
         models: list,
         docs_url: str,
         description: str
-    ) -> QGroupBox:
-        """Create a group box for a provider's models."""
-        group = QGroupBox(provider_name)
-        group_layout = QVBoxLayout(group)
+    ) -> QWidget:
+        """Create a tab for a provider's models."""
+        tab = QWidget()
+        tab.setStyleSheet("background: white;")
 
-        # Provider description and docs link
+        # Scroll area for models
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        scroll.setStyleSheet("background: white; border: none;")
+
+        content = QWidget()
+        content.setStyleSheet("background: white;")
+        layout = QVBoxLayout(content)
+        layout.setContentsMargins(12, 12, 12, 12)
+        layout.setSpacing(8)
+
+        # Provider description
         desc_label = QLabel(description)
         desc_label.setWordWrap(True)
-        desc_label.setStyleSheet("color: #666; font-size: 11px;")
-        group_layout.addWidget(desc_label)
+        desc_label.setStyleSheet("color: #666; font-size: 11px; padding-bottom: 4px;")
+        layout.addWidget(desc_label)
 
-        docs_link = QLabel(f'<a href="{docs_url}">Documentation</a>')
+        # Docs link
+        docs_link = QLabel(f'<a href="{docs_url}" style="color: #0066cc;">View Documentation →</a>')
         docs_link.setOpenExternalLinks(True)
-        docs_link.setStyleSheet("font-size: 10px; margin-bottom: 8px;")
-        group_layout.addWidget(docs_link)
+        docs_link.setStyleSheet("font-size: 11px; padding-bottom: 12px;")
+        layout.addWidget(docs_link)
+
+        # Separator
+        separator = QFrame()
+        separator.setFrameShape(QFrame.Shape.HLine)
+        separator.setStyleSheet("background-color: #eee;")
+        separator.setFixedHeight(1)
+        layout.addWidget(separator)
 
         # Models list
         for model_id, display_name in models:
             model_widget = self._create_model_entry(model_id, display_name)
-            group_layout.addWidget(model_widget)
+            layout.addWidget(model_widget)
 
-        return group
+        layout.addStretch()
+
+        scroll.setWidget(content)
+
+        tab_layout = QVBoxLayout(tab)
+        tab_layout.setContentsMargins(0, 0, 0, 0)
+        tab_layout.addWidget(scroll)
+
+        return tab
 
     def _create_model_entry(self, model_id: str, display_name: str) -> QWidget:
         """Create a widget for a single model entry."""
         widget = QWidget()
+        widget.setStyleSheet("""
+            QWidget {
+                background: #fafafa;
+                border-radius: 6px;
+                padding: 4px;
+            }
+            QWidget:hover {
+                background: #f0f0f0;
+            }
+        """)
+
         layout = QVBoxLayout(widget)
-        layout.setContentsMargins(8, 4, 8, 4)
-        layout.setSpacing(2)
+        layout.setContentsMargins(12, 8, 12, 8)
+        layout.setSpacing(4)
 
         # Model name row
         name_row = QHBoxLayout()
@@ -267,28 +341,29 @@ class ModelsWidget(QWidget):
         }
         color = tier_colors.get(tier, "#007bff")
 
-        tier_dot = QLabel("\u25cf")  # Unicode filled circle
-        tier_dot.setStyleSheet(f"color: {color}; font-size: 10px;")
-        tier_dot.setFixedWidth(12)
+        tier_dot = QLabel("●")
+        tier_dot.setStyleSheet(f"color: {color}; font-size: 12px; background: transparent;")
+        tier_dot.setFixedWidth(16)
         name_row.addWidget(tier_dot)
 
         # Display name
-        name_label = QLabel(f"<b>{display_name}</b>")
+        name_label = QLabel(f"<b style='color: #333;'>{display_name}</b>")
+        name_label.setStyleSheet("background: transparent;")
         name_row.addWidget(name_label)
         name_row.addStretch()
 
         layout.addLayout(name_row)
 
         # Model ID
-        id_label = QLabel(f"<code style='color: #666;'>{model_id}</code>")
-        id_label.setStyleSheet("font-size: 10px; margin-left: 20px;")
+        id_label = QLabel(f"<code style='color: #666; background: #e8e8e8; padding: 1px 4px; border-radius: 3px;'>{model_id}</code>")
+        id_label.setStyleSheet("font-size: 10px; margin-left: 24px; background: transparent;")
         layout.addWidget(id_label)
 
         # Note if available
         note = info.get("note", "")
         if note:
             note_label = QLabel(note)
-            note_label.setStyleSheet("color: #888; font-size: 10px; margin-left: 20px;")
+            note_label.setStyleSheet("color: #888; font-size: 10px; margin-left: 24px; background: transparent;")
             note_label.setWordWrap(True)
             layout.addWidget(note_label)
 

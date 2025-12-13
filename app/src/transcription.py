@@ -14,6 +14,8 @@ class TranscriptionResult:
     text: str
     input_tokens: int = 0
     output_tokens: int = 0
+    actual_cost: Optional[float] = None  # Actual cost from provider (OpenRouter)
+    generation_id: Optional[str] = None  # Generation ID for usage lookup
 
 
 class TranscriptionClient(ABC):
@@ -213,20 +215,45 @@ class OpenRouterClient(TranscriptionClient):
                         }
                     ]
                 }
-            ]
+            ],
+            # Request usage information including cost
+            extra_body={"usage": {"include": True}},
         )
 
         # Extract usage data
         input_tokens = 0
         output_tokens = 0
+        actual_cost = None
+        generation_id = None
+
+        # Get generation ID for usage lookup
+        if hasattr(response, 'id') and response.id:
+            generation_id = response.id
+
         if hasattr(response, 'usage') and response.usage:
             input_tokens = getattr(response.usage, 'prompt_tokens', 0) or 0
             output_tokens = getattr(response.usage, 'completion_tokens', 0) or 0
+            # OpenRouter includes cost in usage when requested
+            if hasattr(response.usage, 'cost'):
+                actual_cost = getattr(response.usage, 'cost', None)
+
+        # If cost not in response, try to fetch from generation endpoint
+        if actual_cost is None and generation_id:
+            try:
+                from .openrouter_api import get_openrouter_api
+                api = get_openrouter_api(self.api_key)
+                gen_usage = api.get_generation_usage(generation_id)
+                if gen_usage:
+                    actual_cost = gen_usage.cost
+            except Exception:
+                pass  # Fall back to estimated cost
 
         return TranscriptionResult(
             text=response.choices[0].message.content,
             input_tokens=input_tokens,
-            output_tokens=output_tokens
+            output_tokens=output_tokens,
+            actual_cost=actual_cost,
+            generation_id=generation_id,
         )
 
 

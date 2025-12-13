@@ -23,6 +23,7 @@ from PyQt6.QtWidgets import (
     QWidget,
     QVBoxLayout,
     QHBoxLayout,
+    QGridLayout,
     QPushButton,
     QTextEdit,
     QComboBox,
@@ -38,6 +39,8 @@ from PyQt6.QtWidgets import (
     QMessageBox,
     QFrame,
     QFileDialog,
+    QRadioButton,
+    QButtonGroup,
 )
 from PyQt6.QtCore import Qt, QThread, pyqtSignal, QTimer
 import time
@@ -46,6 +49,8 @@ from PyQt6.QtGui import QIcon, QAction, QFont, QClipboard, QShortcut, QKeySequen
 from .config import (
     Config, load_config, save_config, load_env_keys,
     GEMINI_MODELS, OPENAI_MODELS, MISTRAL_MODELS, OPENROUTER_MODELS,
+    MODEL_TIERS, PROMPT_COMPONENTS, build_cleanup_prompt,
+    FORMAT_TEMPLATES, FORMAT_DISPLAY_NAMES, FORMALITY_DISPLAY_NAMES, EMAIL_SIGNOFFS,
 )
 from .audio_recorder import AudioRecorder
 from .transcription import get_client, TranscriptionResult
@@ -282,14 +287,7 @@ class SettingsDialog(QDialog):
         hotkeys_layout.addStretch()
         tabs.addTab(hotkeys_tab, "Hotkeys")
 
-        # Prompt tab
-        prompt_tab = QWidget()
-        prompt_layout = QVBoxLayout(prompt_tab)
-        prompt_layout.addWidget(QLabel("Cleanup Prompt:"))
-        self.cleanup_prompt = QTextEdit()
-        self.cleanup_prompt.setPlainText(self.config.cleanup_prompt)
-        prompt_layout.addWidget(self.cleanup_prompt)
-        tabs.addTab(prompt_tab, "Prompt")
+        # Note: Prompt options are now in the main Record tab for easier access
 
         layout.addWidget(tabs)
 
@@ -342,7 +340,6 @@ class SettingsDialog(QDialog):
         self.config.selected_microphone = self.mic_combo.currentText()
         self.config.start_minimized = self.start_minimized.isChecked()
         self.config.sample_rate = int(self.sample_rate.currentText())
-        self.config.cleanup_prompt = self.cleanup_prompt.toPlainText()
         # Hotkeys (store lowercase for consistency)
         self.config.hotkey_record_toggle = self.hotkey_toggle.text().lower()
         self.config.hotkey_stop_and_transcribe = self.hotkey_stop_transcribe.text().lower()
@@ -432,6 +429,187 @@ class MainWindow(QMainWindow):
 
         layout.addLayout(provider_layout)
 
+        # Model tier quick toggle (Standard / Budget)
+        tier_layout = QHBoxLayout()
+        tier_layout.addStretch()
+
+        self.standard_btn = QPushButton("Standard")
+        self.standard_btn.setCheckable(True)
+        self.standard_btn.setMinimumWidth(80)
+        self.standard_btn.clicked.connect(lambda: self.set_model_tier("standard"))
+
+        self.budget_btn = QPushButton("Budget")
+        self.budget_btn.setCheckable(True)
+        self.budget_btn.setMinimumWidth(80)
+        self.budget_btn.clicked.connect(lambda: self.set_model_tier("budget"))
+
+        # Style for tier buttons
+        tier_btn_style = """
+            QPushButton {
+                padding: 4px 12px;
+                border: 1px solid #ccc;
+                border-radius: 4px;
+                background-color: #f8f9fa;
+            }
+            QPushButton:hover {
+                background-color: #e9ecef;
+            }
+            QPushButton:checked {
+                background-color: #007bff;
+                color: white;
+                border-color: #0056b3;
+            }
+        """
+        self.standard_btn.setStyleSheet(tier_btn_style)
+        self.budget_btn.setStyleSheet(tier_btn_style)
+
+        tier_layout.addWidget(self.standard_btn)
+        tier_layout.addWidget(self.budget_btn)
+        tier_layout.addStretch()
+
+        layout.addLayout(tier_layout)
+
+        # Update tier button states based on current model
+        self._update_tier_buttons()
+
+        # Prompt Controls (collapsible) - combines cleanup options and format settings
+        prompt_header = QHBoxLayout()
+        self.prompt_toggle_btn = QPushButton("▶ Prompt Controls")
+        self.prompt_toggle_btn.setStyleSheet("""
+            QPushButton {
+                border: none;
+                text-align: left;
+                padding: 4px 8px;
+                color: #555;
+                font-size: 12px;
+            }
+            QPushButton:hover {
+                color: #007bff;
+            }
+        """)
+        self.prompt_toggle_btn.clicked.connect(self._toggle_prompt_options)
+        prompt_header.addWidget(self.prompt_toggle_btn)
+        prompt_header.addStretch()
+        layout.addLayout(prompt_header)
+
+        # Collapsible prompt controls container
+        self.prompt_options_frame = QFrame()
+        self.prompt_options_frame.setStyleSheet("""
+            QFrame {
+                background-color: #f8f9fa;
+                border: 1px solid #dee2e6;
+                border-radius: 4px;
+                padding: 8px;
+            }
+        """)
+        self.prompt_options_frame.setVisible(False)  # Start collapsed
+
+        prompt_options_layout = QVBoxLayout(self.prompt_options_frame)
+        prompt_options_layout.setSpacing(8)
+        prompt_options_layout.setContentsMargins(8, 8, 8, 8)
+
+        # System prompt checkboxes in a two-column grid
+        checkbox_grid = QGridLayout()
+        checkbox_grid.setSpacing(4)
+        self.prompt_checkboxes = {}
+        for i, (field_name, _, ui_description) in enumerate(PROMPT_COMPONENTS):
+            checkbox = QCheckBox(ui_description)
+            checkbox.setStyleSheet("font-size: 11px;")
+            checkbox.setChecked(getattr(self.config, field_name, False))
+            checkbox.stateChanged.connect(self._on_prompt_option_changed)
+            self.prompt_checkboxes[field_name] = checkbox
+            row = i // 2
+            col = i % 2
+            checkbox_grid.addWidget(checkbox, row, col)
+        prompt_options_layout.addLayout(checkbox_grid)
+
+        # Separator line
+        separator = QFrame()
+        separator.setFrameShape(QFrame.Shape.HLine)
+        separator.setStyleSheet("background-color: #dee2e6;")
+        separator.setFixedHeight(1)
+        prompt_options_layout.addWidget(separator)
+
+        # Format and Tone row
+        format_tone_row = QHBoxLayout()
+
+        # Format dropdown
+        format_tone_row.addWidget(QLabel("Format:"))
+        self.format_combo = QComboBox()
+        self.format_combo.setMinimumWidth(120)
+        for format_key in FORMAT_TEMPLATES.keys():
+            self.format_combo.addItem(FORMAT_DISPLAY_NAMES[format_key], format_key)
+        idx = self.format_combo.findData(self.config.format_preset)
+        if idx >= 0:
+            self.format_combo.setCurrentIndex(idx)
+        self.format_combo.currentIndexChanged.connect(self._on_format_changed)
+        format_tone_row.addWidget(self.format_combo)
+
+        format_tone_row.addSpacing(20)
+
+        # Formality radio buttons
+        format_tone_row.addWidget(QLabel("Tone:"))
+        self.formality_group = QButtonGroup(self)
+        for formality_key, display_name in FORMALITY_DISPLAY_NAMES.items():
+            radio = QRadioButton(display_name)
+            radio.setStyleSheet("font-size: 11px;")
+            radio.setProperty("formality_key", formality_key)
+            if formality_key == self.config.formality_level:
+                radio.setChecked(True)
+            self.formality_group.addButton(radio)
+            format_tone_row.addWidget(radio)
+        self.formality_group.buttonClicked.connect(self._on_formality_changed)
+
+        format_tone_row.addStretch()
+        prompt_options_layout.addLayout(format_tone_row)
+
+        # Email settings (conditionally visible)
+        self.email_settings_frame = QFrame()
+        self.email_settings_frame.setStyleSheet("""
+            QFrame {
+                background-color: #e9ecef;
+                border: 1px solid #ced4da;
+                border-radius: 4px;
+                padding: 6px;
+                margin-top: 4px;
+            }
+        """)
+
+        email_layout = QHBoxLayout(self.email_settings_frame)
+        email_layout.setSpacing(8)
+        email_layout.setContentsMargins(8, 6, 8, 6)
+
+        email_layout.addWidget(QLabel("Your name:"))
+        self.user_name_edit = QLineEdit(self.config.user_name)
+        self.user_name_edit.setPlaceholderText("e.g., Daniel")
+        self.user_name_edit.setMaximumWidth(150)
+        self.user_name_edit.textChanged.connect(self._on_email_settings_changed)
+        email_layout.addWidget(self.user_name_edit)
+
+        email_layout.addSpacing(10)
+
+        email_layout.addWidget(QLabel("Sign-off:"))
+        self.signoff_combo = QComboBox()
+        self.signoff_combo.setEditable(True)
+        self.signoff_combo.setMaximumWidth(120)
+        for signoff in EMAIL_SIGNOFFS:
+            self.signoff_combo.addItem(signoff)
+        idx = self.signoff_combo.findText(self.config.email_signature)
+        if idx >= 0:
+            self.signoff_combo.setCurrentIndex(idx)
+        else:
+            self.signoff_combo.setEditText(self.config.email_signature)
+        self.signoff_combo.currentTextChanged.connect(self._on_email_settings_changed)
+        email_layout.addWidget(self.signoff_combo)
+
+        email_layout.addStretch()
+        prompt_options_layout.addWidget(self.email_settings_frame)
+
+        # Show/hide email settings based on current format
+        self._update_email_settings_visibility()
+
+        layout.addWidget(self.prompt_options_frame)
+
         # Microphone indicator
         mic_layout = QHBoxLayout()
         mic_icon = QLabel("🎤")
@@ -444,26 +622,17 @@ class MainWindow(QMainWindow):
         layout.addLayout(mic_layout)
         self._update_mic_display()
 
-        # Recording status, cost, and duration
+        # Recording status and duration
         status_layout = QHBoxLayout()
         self.status_label = QLabel("Ready")
         self.status_label.setStyleSheet("color: #666;")
         status_layout.addWidget(self.status_label)
         status_layout.addStretch()
 
-        # Cost tracking display
-        self.cost_label = QLabel("")
-        self.cost_label.setStyleSheet("color: #888; font-size: 11px;")
-        status_layout.addWidget(self.cost_label)
-        status_layout.addSpacing(15)
-
         self.duration_label = QLabel("0:00")
         self.duration_label.setFont(QFont("Monospace", 12))
         status_layout.addWidget(self.duration_label)
         layout.addLayout(status_layout)
-
-        # Initialize cost display
-        self._update_cost_display()
 
         # Recording controls
         controls = QHBoxLayout()
@@ -574,6 +743,16 @@ class MainWindow(QMainWindow):
         bottom.addWidget(self.copy_btn)
 
         layout.addLayout(bottom)
+
+        # Spend monitor at the bottom
+        self.cost_label = QLabel("")
+        self.cost_label.setTextFormat(Qt.TextFormat.RichText)
+        self.cost_label.setStyleSheet("color: #888; font-size: 11px;")
+        self.cost_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(self.cost_label)
+
+        # Initialize cost display
+        self._update_cost_display()
 
         self.tabs.addTab(record_tab, "Record")
 
@@ -870,6 +1049,7 @@ class MainWindow(QMainWindow):
         """Handle provider change."""
         self.config.selected_provider = provider.lower()
         self.update_model_combo()
+        self._update_tier_buttons()
         save_config(self.config)
 
     def on_model_changed(self, index: int):
@@ -889,6 +1069,72 @@ class MainWindow(QMainWindow):
             self.config.mistral_model = model_id
 
         save_config(self.config)
+        self._update_tier_buttons()
+
+    def set_model_tier(self, tier: str):
+        """Set the model to the standard or budget tier for the current provider."""
+        provider = self.config.selected_provider.lower()
+        tiers = MODEL_TIERS.get(provider, {})
+        model_id = tiers.get(tier)
+
+        if model_id:
+            # Find and select the model in the dropdown
+            idx = self.model_combo.findData(model_id)
+            if idx >= 0:
+                self.model_combo.setCurrentIndex(idx)
+                # on_model_changed will be triggered and save config + update buttons
+
+    def _update_tier_buttons(self):
+        """Update tier button checked states based on current model."""
+        provider = self.config.selected_provider.lower()
+        tiers = MODEL_TIERS.get(provider, {})
+        current_model = self.model_combo.currentData()
+
+        # Block signals to prevent triggering clicks
+        self.standard_btn.blockSignals(True)
+        self.budget_btn.blockSignals(True)
+
+        self.standard_btn.setChecked(current_model == tiers.get("standard"))
+        self.budget_btn.setChecked(current_model == tiers.get("budget"))
+
+        self.standard_btn.blockSignals(False)
+        self.budget_btn.blockSignals(False)
+
+    def _toggle_prompt_options(self):
+        """Toggle visibility of prompt controls panel."""
+        visible = not self.prompt_options_frame.isVisible()
+        self.prompt_options_frame.setVisible(visible)
+        self.prompt_toggle_btn.setText("▼ Prompt Controls" if visible else "▶ Prompt Controls")
+
+    def _on_prompt_option_changed(self):
+        """Handle prompt option checkbox changes - save immediately."""
+        for field_name, checkbox in self.prompt_checkboxes.items():
+            setattr(self.config, field_name, checkbox.isChecked())
+        save_config(self.config)
+
+    def _on_format_changed(self, index: int):
+        """Handle format preset selection change."""
+        format_key = self.format_combo.currentData()
+        self.config.format_preset = format_key
+        save_config(self.config)
+        self._update_email_settings_visibility()
+
+    def _on_formality_changed(self, button):
+        """Handle formality radio button change."""
+        formality_key = button.property("formality_key")
+        self.config.formality_level = formality_key
+        save_config(self.config)
+
+    def _on_email_settings_changed(self):
+        """Handle email name/sign-off changes."""
+        self.config.user_name = self.user_name_edit.text()
+        self.config.email_signature = self.signoff_combo.currentText()
+        save_config(self.config)
+
+    def _update_email_settings_visibility(self):
+        """Show email settings only when format is 'email'."""
+        is_email = self.config.format_preset == "email"
+        self.email_settings_frame.setVisible(is_email)
 
     def get_selected_microphone_index(self):
         """Get the index of the configured microphone."""
@@ -919,6 +1165,10 @@ class MainWindow(QMainWindow):
     def toggle_recording(self):
         """Start or stop recording."""
         if not self.recorder.is_recording:
+            # Clear previous transcription when starting new recording
+            self.text_output.clear()
+            self.word_count_label.setText("")
+
             # Set microphone from config
             mic_idx = self.get_selected_microphone_index()
             if mic_idx is not None:
@@ -1018,8 +1268,9 @@ class MainWindow(QMainWindow):
             return
 
         # Start transcription worker
+        cleanup_prompt = build_cleanup_prompt(self.config)
         self.worker = TranscriptionWorker(
-            audio_data, provider, api_key, model, self.config.cleanup_prompt
+            audio_data, provider, api_key, model, cleanup_prompt
         )
         self.worker.finished.connect(self.on_transcription_complete)
         self.worker.error.connect(self.on_transcription_error)
@@ -1046,12 +1297,17 @@ class MainWindow(QMainWindow):
         else:
             model = self.config.mistral_model
 
-        # Track cost if we have usage data
-        estimated_cost = 0.0
-        if result.input_tokens > 0 or result.output_tokens > 0:
+        # Determine cost: use actual cost from OpenRouter, or estimate for others
+        final_cost = 0.0
+        if result.actual_cost is not None:
+            # Use actual cost from OpenRouter API
+            final_cost = result.actual_cost
+        elif result.input_tokens > 0 or result.output_tokens > 0:
+            # Fall back to estimated cost
             tracker = get_tracker()
-            estimated_cost = tracker.record_usage(provider, model, result.input_tokens, result.output_tokens)
-            self._update_cost_display()
+            final_cost = tracker.record_usage(provider, model, result.input_tokens, result.output_tokens)
+
+        self._update_cost_display()
 
         # Get inference time from worker
         inference_time_ms = self.worker.inference_time_ms if self.worker else 0
@@ -1069,6 +1325,7 @@ class MainWindow(QMainWindow):
         # Save to database
         audio_duration = getattr(self, 'last_audio_duration', None)
         vad_duration = getattr(self, 'last_vad_duration', None)
+        prompt_length = len(self.worker.prompt) if self.worker else 0
         db = get_db()
         db.save_transcription(
             provider=provider,
@@ -1078,9 +1335,10 @@ class MainWindow(QMainWindow):
             inference_time_ms=inference_time_ms,
             input_tokens=result.input_tokens,
             output_tokens=result.output_tokens,
-            estimated_cost=estimated_cost,
+            estimated_cost=final_cost,
             audio_file_path=audio_file_path,
             vad_audio_duration_seconds=vad_duration,
+            prompt_text_length=prompt_length,
         )
 
         # Clear stored audio data
@@ -1091,8 +1349,11 @@ class MainWindow(QMainWindow):
         if hasattr(self, 'last_vad_duration'):
             del self.last_vad_duration
 
+        # Auto-copy to clipboard (using wl-copy for Wayland)
+        self._copy_to_clipboard_wayland(result.text)
+
         self.reset_ui()
-        self.status_label.setText("Done!")
+        self.status_label.setText("Copied!")
         self.status_label.setStyleSheet("color: #28a745; font-weight: bold;")
 
     def on_transcription_error(self, error: str):
@@ -1101,19 +1362,50 @@ class MainWindow(QMainWindow):
         self.reset_ui()
 
     def _update_cost_display(self):
-        """Update the cost display label."""
-        tracker = get_tracker()
-        today_cost = tracker.get_today_cost()
-        count = tracker.get_today_count()
+        """Update the cost display label with today's spend and OpenRouter balance."""
+        db = get_db()
+        today = db.get_cost_today()
+        today_cost = today['total_cost']
+        count = today['count']
 
+        # Build display text
+        tooltip_parts = []
+        today_text = ""
+        balance_text = ""
+
+        # Today's cost (rounded to nearest cent)
         if count > 0:
-            self.cost_label.setText(f"Today: ~${today_cost:.4f} ({count})")
-            self.cost_label.setToolTip(
-                f"Estimated cost today: ${today_cost:.4f}\n"
-                f"Transcriptions: {count}\n\n"
-                f"⚠ Estimate only - may not reflect actual billing.\n"
-                f"Check your provider's dashboard for precise costs."
-            )
+            today_text = f"Today: ${today_cost:.2f}"
+            tooltip_parts.append(f"Spent today: ${today_cost:.2f}")
+            tooltip_parts.append(f"Transcriptions: {count}")
+
+        # Get OpenRouter balance if available
+        if self.config.openrouter_api_key and self.config.selected_provider == "openrouter":
+            try:
+                from .openrouter_api import get_openrouter_api
+                api = get_openrouter_api(self.config.openrouter_api_key)
+                credits = api.get_credits()
+                if credits:
+                    balance = credits.balance
+                    # Format balance: cents if < $1, dollars if >= $1
+                    if balance < 1.0:
+                        cents = int(round(balance * 100))
+                        balance_display = f"({cents} cents)"
+                    else:
+                        balance_display = f"(${balance:.1f})"
+                    # Style with distinctive background
+                    balance_text = f'<span style="background-color: rgba(100, 149, 237, 0.3); padding: 1px 4px; border-radius: 3px;">{balance_display}</span>'
+                    tooltip_parts.append(f"\nOpenRouter Balance: ${balance:.2f}")
+                    tooltip_parts.append(f"Credits: ${credits.total_credits:.2f}")
+                    tooltip_parts.append(f"Usage: ${credits.total_usage:.2f}")
+            except Exception:
+                pass  # Silently fail if balance fetch fails
+
+        # Combine today's cost and balance
+        if today_text or balance_text:
+            parts = [p for p in [today_text, balance_text] if p]
+            self.cost_label.setText("  ".join(parts))
+            self.cost_label.setToolTip("\n".join(tooltip_parts))
         else:
             self.cost_label.setText("")
             self.cost_label.setToolTip("")
@@ -1216,12 +1508,31 @@ class MainWindow(QMainWindow):
         self.text_output.clear()
         self.word_count_label.setText("")
 
+    def _copy_to_clipboard_wayland(self, text: str):
+        """Copy text to clipboard using wl-copy (Wayland-native)."""
+        import subprocess
+        try:
+            # Use wl-copy for reliable Wayland clipboard
+            process = subprocess.Popen(
+                ["wl-copy"],
+                stdin=subprocess.PIPE,
+                stderr=subprocess.DEVNULL
+            )
+            process.communicate(input=text.encode("utf-8"))
+        except FileNotFoundError:
+            # Fallback to Qt clipboard if wl-copy not available
+            clipboard = QApplication.clipboard()
+            clipboard.setText(text)
+        except Exception:
+            # Fallback to Qt clipboard on any error
+            clipboard = QApplication.clipboard()
+            clipboard.setText(text)
+
     def copy_to_clipboard(self):
         """Copy transcription to clipboard."""
         text = self.text_output.toPlainText()
         if text:
-            clipboard = QApplication.clipboard()
-            clipboard.setText(text)
+            self._copy_to_clipboard_wayland(text)
             self.status_label.setText("Copied!")
             self.status_label.setStyleSheet("color: #28a745;")
             QTimer.singleShot(2000, lambda: self.status_label.setText("Ready"))

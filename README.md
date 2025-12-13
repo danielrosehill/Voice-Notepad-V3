@@ -5,9 +5,26 @@ Notepad app that offers a variety of multimodal audio models for single operatio
 
 Supported backends:
 
-- Gemini (default): `flash-latest` is default preset with options for Flash Lite as cost-effective alternative 
-- OpenAI 
-- Voxtral (by Mistral)
+- **OpenRouter** (recommended): Access multiple models (Gemini, GPT-4o, Voxtral) through a single API key with accurate cost tracking
+- **Gemini**: Direct Google AI access, `flash-latest` is default preset
+- **OpenAI**: Direct OpenAI access for GPT-4o audio models
+- **Mistral/Voxtral**: Direct Mistral access for Voxtral models
+
+## Scope
+
+This app focuses specifically on **audio multimodal models**—AI models that can directly process audio input for transcription. This is distinct from traditional ASR (automatic speech recognition) pipelines that require a separate LLM pass for text cleanup.
+
+**What this app is:**
+- A simple interface for single-pass transcription + basic cleanup
+- Focused on the small but growing category of audio-capable multimodal models
+- A lightweight tool with a standard cleanup prompt (remove filler words, add punctuation, follow verbal instructions)
+
+**What this app is not:**
+- A platform for elaborate text formatting or custom prompt engineering
+- A general-purpose transcription tool using traditional ASR
+- An "omnimodel" showcase (the focus is specifically on audio→text, not broader multimodal capabilities)
+
+The list of supported models is intentionally curated to those that genuinely support audio multimodal transcription. If you're an API provider rolling out audio multimodal capabilities, feel free to open an issue or PR.
 
 ## How It Works
 
@@ -31,6 +48,10 @@ This single-pass approach:
 - **Word count**: Live word and character count
 - **Keyboard shortcuts**: Full keyboard control for efficient workflow
 - **Global hotkeys**: System-wide hotkeys work even when app is minimized (F14-F20 recommended)
+- **Cost tracking**: Monitor API spend (today/week/month) with accurate key-specific usage for OpenRouter
+- **Transcript history**: SQLite database stores all transcriptions with metadata
+- **VAD (Voice Activity Detection)**: Optional silence removal before API upload (reduces cost)
+- **Audio archival**: Optional Opus archival of recordings
 - **Local configuration**: Settings stored in `~/.config/voice-notepad-v3/`
 
 ## Installation
@@ -52,6 +73,7 @@ Set your API keys either:
 
 1. **Environment variables** (or `.env` file):
    ```
+   OPENROUTER_API_KEY=your_key  # Recommended - access multiple models
    GEMINI_API_KEY=your_key
    OPENAI_API_KEY=your_key
    MISTRAL_API_KEY=your_key
@@ -126,6 +148,16 @@ The default cleanup prompt instructs the AI to:
 
 Customize the prompt in Settings > Prompt.
 
+## Cost Tracking
+
+The Cost tab provides detailed API usage tracking. **OpenRouter is recommended** for accurate cost tracking because it provides:
+
+- **Key-specific usage**: Daily, weekly, and monthly spend for your configured API key only (not account-wide)
+- **Model breakdown**: See which models are costing the most (last 30 days from OpenRouter's activity API)
+- **Account balance**: Real-time credit balance display
+
+**Note**: Only OpenRouter provides accurate cost data via its API. Other providers (Gemini, OpenAI, Mistral) show estimated costs based on token counts, which may not reflect actual billing.
+
 ## Project Structure
 
 ```
@@ -190,10 +222,9 @@ sudo apt install ./dist/voice-notepad_*.deb
 
 Planned features for future releases:
 
-- **Cost tracking**: Monitor API spend (today/week/month) per provider
-- **Auto-copy to clipboard**: Option to automatically copy transcription to clipboard
 - **Virtual input insertion**: Type transcription directly into any text field (Wayland support)
-- **Debian packaging**: Build as .deb for easy Ubuntu/Debian installation
+- **S3 cloud backup**: Mirror local data to object storage
+- **Words per minute tracking**: Analyze speech patterns
 
 ## Related Resources
 

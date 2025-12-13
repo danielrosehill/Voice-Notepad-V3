@@ -136,7 +136,7 @@ class AnalysisWidget(QWidget):
         # Recent stats
         recent = db.get_recent_stats(days=7)
         self.stat_labels["transcriptions"].setText(str(recent["count"]))
-        self.stat_labels["total_cost"].setText(f"${recent['total_cost']:.4f}")
+        self.stat_labels["total_cost"].setText(f"${recent['total_cost']:.2f}")
         self.stat_labels["avg_inference"].setText(
             f"{recent['avg_inference_ms']:.0f}ms" if recent['avg_inference_ms'] else "--"
         )
@@ -152,7 +152,7 @@ class AnalysisWidget(QWidget):
             self.model_table.setItem(row, 2, QTableWidgetItem(str(perf["count"])))
             self.model_table.setItem(row, 3, QTableWidgetItem(f"{perf['avg_inference_ms']:.0f}"))
             self.model_table.setItem(row, 4, QTableWidgetItem(f"{perf['avg_chars_per_sec']:.1f}"))
-            self.model_table.setItem(row, 5, QTableWidgetItem(f"${perf['total_cost']:.4f}"))
+            self.model_table.setItem(row, 5, QTableWidgetItem(f"${perf['total_cost']:.2f}"))
 
         # Storage stats
         storage = db.get_storage_stats()

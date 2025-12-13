@@ -32,6 +32,7 @@ class TranscriptionRecord:
     word_count: int
     audio_file_path: Optional[str]
     vad_audio_duration_seconds: Optional[float]
+    prompt_text_length: int = 0  # Length of the system prompt sent
 
     def to_dict(self):
         return asdict(self)
@@ -53,6 +54,7 @@ class TranscriptionRecord:
             word_count=row["word_count"],
             audio_file_path=row["audio_file_path"],
             vad_audio_duration_seconds=row["vad_audio_duration_seconds"],
+            prompt_text_length=row["prompt_text_length"] if "prompt_text_length" in row.keys() else 0,
         )
 
 
@@ -90,13 +92,24 @@ class TranscriptionDB:
                 text_length INTEGER DEFAULT 0,
                 word_count INTEGER DEFAULT 0,
                 audio_file_path TEXT,
-                vad_audio_duration_seconds REAL
+                vad_audio_duration_seconds REAL,
+                prompt_text_length INTEGER DEFAULT 0
             );
 
             CREATE INDEX IF NOT EXISTS idx_timestamp ON transcriptions(timestamp);
             CREATE INDEX IF NOT EXISTS idx_provider ON transcriptions(provider);
         """)
+        # Migrate existing tables to add new column if missing
+        self._migrate_schema(conn)
         conn.commit()
+
+    def _migrate_schema(self, conn):
+        """Add any missing columns to existing tables."""
+        cursor = conn.execute("PRAGMA table_info(transcriptions)")
+        columns = {row[1] for row in cursor.fetchall()}
+
+        if "prompt_text_length" not in columns:
+            conn.execute("ALTER TABLE transcriptions ADD COLUMN prompt_text_length INTEGER DEFAULT 0")
 
     def save_transcription(
         self,
@@ -110,6 +123,7 @@ class TranscriptionDB:
         estimated_cost: float = 0.0,
         audio_file_path: Optional[str] = None,
         vad_audio_duration_seconds: Optional[float] = None,
+        prompt_text_length: int = 0,
     ) -> int:
         """Save a transcription and return its ID."""
         conn = self._get_conn()
@@ -124,15 +138,15 @@ class TranscriptionDB:
                 audio_duration_seconds, inference_time_ms,
                 input_tokens, output_tokens, estimated_cost,
                 text_length, word_count, audio_file_path,
-                vad_audio_duration_seconds
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                vad_audio_duration_seconds, prompt_text_length
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 timestamp, provider, model, transcript_text,
                 audio_duration_seconds, inference_time_ms,
                 input_tokens, output_tokens, estimated_cost,
                 text_length, word_count, audio_file_path,
-                vad_audio_duration_seconds,
+                vad_audio_duration_seconds, prompt_text_length,
             )
         )
         conn.commit()
@@ -392,6 +406,38 @@ class TranscriptionDB:
             "total_cost": round(row["total_cost"] or 0, 6),
         }
 
+    def get_cost_this_month(self) -> dict:
+        """Get cost for the current calendar month."""
+        conn = self._get_conn()
+        cursor = conn.execute("""
+            SELECT
+                COUNT(*) as count,
+                SUM(estimated_cost) as total_cost
+            FROM transcriptions
+            WHERE timestamp >= datetime('now', 'start of month', 'localtime')
+        """)
+        row = cursor.fetchone()
+        return {
+            "count": row["count"] or 0,
+            "total_cost": round(row["total_cost"] or 0, 6),
+        }
+
+    def get_cost_last_60_min(self) -> dict:
+        """Get cost for the last 60 minutes."""
+        conn = self._get_conn()
+        cursor = conn.execute("""
+            SELECT
+                COUNT(*) as count,
+                SUM(estimated_cost) as total_cost
+            FROM transcriptions
+            WHERE timestamp >= datetime('now', '-60 minutes', 'localtime')
+        """)
+        row = cursor.fetchone()
+        return {
+            "count": row["count"] or 0,
+            "total_cost": round(row["total_cost"] or 0, 6),
+        }
+
     def get_cost_by_provider(self) -> list[dict]:
         """Get cost breakdown by provider."""
         conn = self._get_conn()
@@ -436,13 +482,28 @@ class TranscriptionDB:
             for row in cursor.fetchall()
         ]
 
-    def export_to_csv(self, filepath: Optional[Path] = None) -> Path:
-        """Export all transcriptions to a CSV file."""
+    def export_to_csv(
+        self,
+        filepath: Optional[Path] = None,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+    ) -> tuple[Path, int]:
+        """Export transcriptions to a CSV file.
+
+        Args:
+            filepath: Output file path (defaults to config dir)
+            start_date: ISO format start date filter (inclusive)
+            end_date: ISO format end date filter (inclusive)
+
+        Returns:
+            Tuple of (filepath, record_count)
+        """
         if filepath is None:
             filepath = CSV_EXPORT_FILE
 
         conn = self._get_conn()
-        cursor = conn.execute("""
+
+        query = """
             SELECT
                 timestamp,
                 provider,
@@ -456,8 +517,25 @@ class TranscriptionDB:
                 estimated_cost,
                 word_count
             FROM transcriptions
-            ORDER BY timestamp DESC
-        """)
+            WHERE 1=1
+        """
+        params = []
+
+        if start_date:
+            query += " AND timestamp >= ?"
+            params.append(start_date)
+
+        if end_date:
+            # Add one day to make end_date inclusive
+            query += " AND timestamp < datetime(?, '+1 day')"
+            params.append(end_date)
+
+        query += " ORDER BY timestamp DESC"
+
+        cursor = conn.execute(query, params)
+
+        rows = cursor.fetchall()
+        record_count = len(rows)
 
         with open(filepath, 'w', newline='', encoding='utf-8') as f:
             writer = csv.writer(f)
@@ -474,7 +552,7 @@ class TranscriptionDB:
                 'Estimated Cost',
                 'Word Count'
             ])
-            for row in cursor.fetchall():
+            for row in rows:
                 writer.writerow([
                     row['timestamp'],
                     row['provider'],
@@ -489,7 +567,7 @@ class TranscriptionDB:
                     row['word_count']
                 ])
 
-        return filepath
+        return filepath, record_count
 
     def close(self):
         """Close database connection."""

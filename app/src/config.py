@@ -41,6 +41,27 @@ OPENROUTER_MODELS = [
     ("mistralai/voxtral-small-24b-2507", "Voxtral Small 24B"),
 ]
 
+# Standard and Budget model tiers per provider
+# These define which models the quick-toggle buttons select
+MODEL_TIERS = {
+    "openrouter": {
+        "standard": "google/gemini-2.5-flash",
+        "budget": "google/gemini-2.5-flash-lite",
+    },
+    "gemini": {
+        "standard": "gemini-2.5-flash",
+        "budget": "gemini-2.5-flash-lite",
+    },
+    "openai": {
+        "standard": "gpt-4o-audio-preview",
+        "budget": "gpt-4o-mini-audio-preview",
+    },
+    "mistral": {
+        "standard": "voxtral-small-latest",
+        "budget": "voxtral-mini-latest",
+    },
+}
+
 
 @dataclass
 class Config:
@@ -83,17 +104,28 @@ class Config:
     # Audio feedback
     beep_on_record: bool = True  # Play beep when recording starts/stops
 
-    # Cleanup prompt
-    cleanup_prompt: str = """Your task is to provide a cleaned transcription of the audio recorded by the user.
-- Remove filler words (um, uh, like, you know, so, well, etc.)
-- Remove standalone acknowledgments that don't add meaning (e.g., "Okay." or "Right." as their own sentences)
-- Remove conversational verbal tics and hedging phrases (e.g., "you know", "I mean", "kind of", "sort of", "basically", "actually" when used as fillers)
-- Add proper punctuation and sentence structure
-- Add natural paragraph spacing
-- If the user makes any verbal instructions during the recording (such as "don't include this" or "new paragraph"), follow those instructions
-- Add markdown subheadings (## Heading) if it's a lengthy transcription with distinct sections
-- Use markdown formatting where appropriate (bold, lists, etc.)
-- Output ONLY the cleaned transcription in markdown format, no commentary or preamble"""
+    # Prompt customization options (checkboxes)
+    # These are concatenated to build the cleanup prompt
+    prompt_remove_fillers: bool = True       # Remove um, uh, like, etc.
+    prompt_remove_tics: bool = True          # Remove hedging phrases (you know, I mean, etc.)
+    prompt_remove_acknowledgments: bool = True  # Remove standalone Okay, Right, etc.
+    prompt_punctuation: bool = True          # Add proper punctuation and sentences
+    prompt_paragraph_spacing: bool = True    # Add natural paragraph breaks
+    prompt_follow_instructions: bool = True  # Follow verbal instructions (don't include this, etc.)
+    prompt_add_subheadings: bool = False     # Add ## headings for lengthy content
+    prompt_markdown_formatting: bool = False  # Use bold, lists, etc.
+
+    # Legacy field - kept for backwards compatibility but not used directly
+    # The prompt is now built from the above boolean flags
+    cleanup_prompt: str = ""
+
+    # Format preset and formality settings
+    format_preset: str = "general"      # general, email, todo, grocery, meeting_notes, bullet_points
+    formality_level: str = "neutral"    # casual, neutral, professional
+
+    # Email signature settings (used when format_preset == "email")
+    user_name: str = ""
+    email_signature: str = "Best regards"
 
 
 def load_config() -> Config:
@@ -135,3 +167,128 @@ def load_env_keys(config: Config) -> Config:
     if not config.openrouter_api_key:
         config.openrouter_api_key = os.environ.get("OPENROUTER_API_KEY", "")
     return config
+
+
+# Prompt component definitions
+# Each tuple: (config_field, instruction_text, description_for_ui)
+PROMPT_COMPONENTS = [
+    (
+        "prompt_remove_fillers",
+        "Remove filler words (um, uh, like, you know, so, well, etc.)",
+        "Remove filler words (um, uh, like...)"
+    ),
+    (
+        "prompt_remove_tics",
+        "Remove conversational verbal tics and hedging phrases (e.g., \"you know\", \"I mean\", \"kind of\", \"sort of\", \"basically\", \"actually\" when used as fillers)",
+        "Remove verbal tics (you know, I mean...)"
+    ),
+    (
+        "prompt_remove_acknowledgments",
+        "Remove standalone acknowledgments that don't add meaning (e.g., \"Okay.\" or \"Right.\" as their own sentences)",
+        "Remove standalone acknowledgments (Okay, Right...)"
+    ),
+    (
+        "prompt_punctuation",
+        "Add proper punctuation and sentence structure",
+        "Add punctuation and sentence structure"
+    ),
+    (
+        "prompt_paragraph_spacing",
+        "Add natural paragraph spacing",
+        "Add paragraph spacing"
+    ),
+    (
+        "prompt_follow_instructions",
+        "If the user makes any verbal instructions during the recording (such as \"don't include this\" or \"new paragraph\"), follow those instructions",
+        "Follow verbal instructions (\"don't include this\"...)"
+    ),
+    (
+        "prompt_add_subheadings",
+        "Add markdown subheadings (## Heading) if it's a lengthy transcription with distinct sections",
+        "Add subheadings for long transcriptions"
+    ),
+    (
+        "prompt_markdown_formatting",
+        "Use markdown formatting where appropriate (bold, lists, etc.)",
+        "Use markdown formatting (bold, lists...)"
+    ),
+]
+
+
+# Format preset templates
+# Each format adds specific instructions to shape the output
+FORMAT_TEMPLATES = {
+    "general": "",  # No additional instructions, uses base cleanup only
+    "email": "Format the output as an email with an appropriate greeting and sign-off.",
+    "todo": "Format as a to-do list with checkbox items (- [ ] task). Use action verbs and be concise.",
+    "grocery": "Format as a grocery list. Group items by category (produce, dairy, meat, pantry, etc.) if there are multiple items.",
+    "meeting_notes": "Format as meeting notes with clear sections, bullet points for key points, and a separate 'Action Items' section at the end.",
+    "bullet_points": "Format as concise bullet points. One idea per bullet.",
+}
+
+# Display names for format presets (for UI dropdowns)
+FORMAT_DISPLAY_NAMES = {
+    "general": "General",
+    "email": "Email",
+    "todo": "To-Do List",
+    "grocery": "Grocery List",
+    "meeting_notes": "Meeting Notes",
+    "bullet_points": "Bullet Points",
+}
+
+# Formality level templates
+FORMALITY_TEMPLATES = {
+    "casual": "Use a casual, friendly, conversational tone.",
+    "neutral": "",  # No tone modifier
+    "professional": "Use a professional, formal tone appropriate for business communication.",
+}
+
+# Display names for formality levels (for UI)
+FORMALITY_DISPLAY_NAMES = {
+    "casual": "Casual",
+    "neutral": "Neutral",
+    "professional": "Professional",
+}
+
+# Common email sign-offs for dropdown
+EMAIL_SIGNOFFS = [
+    "Best regards",
+    "Best",
+    "Thanks",
+    "Thank you",
+    "Cheers",
+    "Sincerely",
+    "Regards",
+    "Warm regards",
+    "Kind regards",
+]
+
+
+def build_cleanup_prompt(config: Config) -> str:
+    """Build the cleanup prompt from config boolean flags, format preset, and formality."""
+    lines = ["Your task is to provide a cleaned transcription of the audio recorded by the user."]
+
+    # Add cleanup instructions from checkboxes
+    for field_name, instruction, _ in PROMPT_COMPONENTS:
+        if getattr(config, field_name, False):
+            lines.append(f"- {instruction}")
+
+    # Add format-specific instructions
+    format_template = FORMAT_TEMPLATES.get(config.format_preset, "")
+    if format_template:
+        lines.append(f"- {format_template}")
+
+    # Add formality/tone instructions
+    formality_template = FORMALITY_TEMPLATES.get(config.formality_level, "")
+    if formality_template:
+        lines.append(f"- {formality_template}")
+
+    # Add email signature if format is email and user has configured their name
+    if config.format_preset == "email" and config.user_name:
+        sign_off = config.email_signature or "Best regards"
+        lines.append(f"- End the email with the sign-off: \"{sign_off},\" followed by the sender's name: \"{config.user_name}\"")
+
+    # Always include output format instruction
+    lines.append("- Output ONLY the cleaned transcription in markdown format, no commentary or preamble")
+
+    return "\n".join(lines)

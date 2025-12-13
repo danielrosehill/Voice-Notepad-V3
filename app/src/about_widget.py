@@ -69,6 +69,49 @@ class AboutWidget(QWidget):
         line.setStyleSheet("background-color: #ddd;")
         layout.addWidget(line)
 
+        # Scope section
+        scope_group = QGroupBox("Scope")
+        scope_layout = QVBoxLayout(scope_group)
+        scope_layout.setSpacing(8)
+
+        scope_intro = QLabel(
+            "This app focuses on <b>audio multimodal models</b>—AI models that "
+            "directly process audio for transcription, eliminating the need for "
+            "separate ASR + LLM pipelines."
+        )
+        scope_intro.setWordWrap(True)
+        scope_intro.setStyleSheet("color: #444; font-size: 11px;")
+        scope_layout.addWidget(scope_intro)
+
+        scope_is = QLabel(
+            "<b>What this app is:</b><br>"
+            "• A simple interface for single-pass transcription + basic cleanup<br>"
+            "• Focused on audio-capable multimodal models<br>"
+            "• A lightweight tool with a standard cleanup prompt"
+        )
+        scope_is.setWordWrap(True)
+        scope_is.setStyleSheet("color: #444; font-size: 11px;")
+        scope_layout.addWidget(scope_is)
+
+        scope_not = QLabel(
+            "<b>What this app is not:</b><br>"
+            "• A platform for elaborate text formatting prompts<br>"
+            "• A general-purpose ASR tool<br>"
+            "• An omnimodel showcase (focus is audio→text only)"
+        )
+        scope_not.setWordWrap(True)
+        scope_not.setStyleSheet("color: #666; font-size: 11px;")
+        scope_layout.addWidget(scope_not)
+
+        scope_note = QLabel(
+            "API providers with audio multimodal models: open an issue or PR!"
+        )
+        scope_note.setWordWrap(True)
+        scope_note.setStyleSheet("color: #888; font-size: 10px; font-style: italic;")
+        scope_layout.addWidget(scope_note)
+
+        layout.addWidget(scope_group)
+
         # Keyboard shortcuts
         shortcuts_group = QGroupBox("Keyboard Shortcuts")
         shortcuts_layout = QVBoxLayout(shortcuts_group)

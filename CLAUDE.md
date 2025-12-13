@@ -125,12 +125,13 @@ Audio is compressed before upload:
 ### Implemented
 
 - [x] **Global hotkeys**: System-wide keyboard shortcuts (F14-F20 recommended)
-- [x] **Cost tracking**: Daily estimated spend displayed in status bar
+- [x] **Cost tracking**: Actual costs via OpenRouter API, estimates for other providers
+- [x] **OpenRouter balance**: Live credit balance in status bar and Cost tab
 - [x] **Transcript history**: SQLite database stores all transcriptions with metadata
 - [x] **VAD (Voice Activity Detection)**: Strips silence before API upload (reduces cost)
 - [x] **Audio archival**: Optional Opus archival (~24kbps, very small files)
 - [x] **History tab**: Browse, search, and reuse past transcriptions
-- [x] **Cost tab**: Detailed spend tracking (hourly, daily, weekly, all-time)
+- [x] **Cost tab**: Balance, spending (hourly/daily/weekly/monthly), model breakdown
 - [x] **Analysis tab**: Model performance metrics (inference time, chars/sec)
 - [x] **Models tab**: Browse available models by provider with tier indicators
 - [x] **Tabbed interface**: Record, History, Cost, Analysis, Models, and About tabs
@@ -173,11 +174,39 @@ Does both in one step - builds the package then installs it.
 
 ## Cost Tracking
 
-The app tracks estimated API costs based on token usage reported by each provider. Usage is stored per-day in `~/.config/voice-notepad-v3/usage/YYYY-MM-DD.json`.
+The app tracks API costs with **OpenRouter providing actual key-specific costs** from the API. Other providers use token-based estimates only.
 
-The status bar shows "Today: $X.XXXX (N)" where N is the number of transcriptions.
+### OpenRouter (Recommended)
+OpenRouter provides the most accurate cost tracking:
+- **Key-specific usage**: Uses `/api/v1/key` endpoint to get usage for your specific API key (not account-wide)
+- **Account balance**: Displayed in status bar and Cost tab via `/api/v1/credits`
+- **Activity breakdown**: Model usage breakdown via `/api/v1/activity` endpoint (last 30 days)
 
-**Note:** Costs are estimates based on published token pricing. Audio token costs vary by provider and may not be fully accurate. For precise billing, check your provider's dashboard.
+### Status Bar Display
+- Shows "Today: $X.XXXX (N) | Bal: $X.XX" when using OpenRouter
+- N = number of transcriptions today (from local database)
+- Bal = remaining OpenRouter credit balance
+
+### Cost Tab Features
+- **OpenRouter Balance**: Live account balance (cached 60 seconds)
+- **API Key Usage**: Daily, weekly, monthly spend for the configured key only
+- **Model Breakdown**: Usage by model from OpenRouter's activity API
+- **Local Statistics**: Transcription count, words, and characters from local database
+
+### Source Files
+- `openrouter_api.py` - OpenRouter API client for credits, key info, and activity
+- `cost_widget.py` - Cost tab UI with balance, key usage, and model breakdown
+- `cost_tracker.py` - Legacy token-based cost estimation (non-OpenRouter)
+
+### Database Fields for Cost Analysis
+The database tracks per-transcription metrics:
+- `input_tokens` / `output_tokens` - Token counts
+- `estimated_cost` - Actual cost (OpenRouter) or estimated (others)
+- `audio_duration_seconds` / `vad_audio_duration_seconds` - Audio length
+- `text_length` / `word_count` - Output transcript metrics
+- `prompt_text_length` - System prompt length sent to API
+
+**Note:** Only OpenRouter provides accurate key-specific cost data. Other providers show estimates based on token pricing which may not reflect actual billing.
 
 ## Voice Activity Detection (VAD)
 
