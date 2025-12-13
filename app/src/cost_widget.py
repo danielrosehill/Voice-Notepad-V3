@@ -60,7 +60,7 @@ class CostCard(QWidget):
 
     def set_values(self, cost: float, count: int):
         """Update the displayed values."""
-        self.cost_label.setText(f"${cost:.4f}")
+        self.cost_label.setText(f"~${cost:.4f}")
         self.count_label.setText(f"{count} transcription{'s' if count != 1 else ''}")
 
 
@@ -144,13 +144,16 @@ class CostWidget(QWidget):
 
         layout.addWidget(model_group, 1)
 
-        # Note about estimates
+        # Warning about estimates
         note_label = QLabel(
-            "Note: Costs are estimates based on token usage. Audio token pricing varies by provider. "
-            "Check your provider's dashboard for precise billing."
+            "⚠ All costs shown are estimates based on token usage and may not reflect actual billing. "
+            "Audio token pricing varies by provider. Check your provider's dashboard for precise costs."
         )
         note_label.setWordWrap(True)
-        note_label.setStyleSheet("color: #888; font-size: 10px; font-style: italic;")
+        note_label.setStyleSheet(
+            "color: #856404; background-color: #fff3cd; border: 1px solid #ffeeba; "
+            "border-radius: 4px; padding: 8px; font-size: 11px;"
+        )
         layout.addWidget(note_label)
 
     def refresh(self):
@@ -179,7 +182,7 @@ class CostWidget(QWidget):
         for row, provider_data in enumerate(providers):
             self.provider_table.setItem(row, 0, QTableWidgetItem(provider_data["provider"].title()))
             self.provider_table.setItem(row, 1, QTableWidgetItem(str(provider_data["count"])))
-            self.provider_table.setItem(row, 2, QTableWidgetItem(f"${provider_data['total_cost']:.4f}"))
+            self.provider_table.setItem(row, 2, QTableWidgetItem(f"~${provider_data['total_cost']:.4f}"))
 
         # Model breakdown
         models = db.get_cost_by_model()
@@ -188,4 +191,4 @@ class CostWidget(QWidget):
             self.model_table.setItem(row, 0, QTableWidgetItem(model_data["provider"].title()))
             self.model_table.setItem(row, 1, QTableWidgetItem(model_data["model"]))
             self.model_table.setItem(row, 2, QTableWidgetItem(str(model_data["count"])))
-            self.model_table.setItem(row, 3, QTableWidgetItem(f"${model_data['total_cost']:.4f}"))
+            self.model_table.setItem(row, 3, QTableWidgetItem(f"~${model_data['total_cost']:.4f}"))

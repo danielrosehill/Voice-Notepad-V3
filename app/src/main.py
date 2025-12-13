@@ -1063,14 +1063,47 @@ class MainWindow(QMainWindow):
         count = tracker.get_today_count()
 
         if count > 0:
-            self.cost_label.setText(f"Today: ${today_cost:.4f} ({count})")
+            self.cost_label.setText(f"Today: ~${today_cost:.4f} ({count})")
             self.cost_label.setToolTip(
                 f"Estimated cost today: ${today_cost:.4f}\n"
-                f"Transcriptions: {count}"
+                f"Transcriptions: {count}\n\n"
+                f"⚠ Estimate only - may not reflect actual billing.\n"
+                f"Check your provider's dashboard for precise costs."
             )
         else:
             self.cost_label.setText("")
             self.cost_label.setToolTip("")
+
+    def _update_mic_display(self):
+        """Update the microphone display label."""
+        mic_name = self._get_active_microphone_name()
+        self.mic_label.setText(mic_name)
+        self.mic_label.setToolTip(f"Active microphone: {mic_name}\nChange in Settings → Audio")
+
+    def _get_active_microphone_name(self) -> str:
+        """Get the name of the currently active microphone."""
+        # If user has selected a specific mic
+        if self.config.selected_microphone:
+            return self.config.selected_microphone
+
+        # Otherwise determine the default that would be used
+        devices = self.recorder.get_input_devices()
+
+        # Check for "pulse" (PipeWire/PulseAudio default)
+        for idx, name in devices:
+            if name == "pulse":
+                return "pulse (system default)"
+
+        # Check for "default"
+        for idx, name in devices:
+            if name == "default":
+                return "default"
+
+        # Fall back to first device
+        if devices:
+            return devices[0][1]
+
+        return "No microphone found"
 
     def reset_ui(self):
         """Reset UI to initial state."""
@@ -1131,6 +1164,8 @@ class MainWindow(QMainWindow):
             self._register_hotkeys()
             # Re-setup in-focus shortcuts
             self._setup_configurable_shortcuts()
+            # Update mic display
+            self._update_mic_display()
 
     def show_window(self):
         """Show and raise the window."""
