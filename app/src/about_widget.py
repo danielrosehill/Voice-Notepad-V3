@@ -12,7 +12,7 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFont
 
 # Application version
-VERSION = "1.3.0"
+VERSION = "1.3.1"
 
 
 class AboutWidget(QWidget):
