@@ -32,23 +32,42 @@ This is a focused tool for the growing category of audio-capable multimodal mode
 
 ## Supported Providers & Models
 
-| Provider | Model |
-|----------|-------|
-| ![OpenRouter](https://img.shields.io/badge/OpenRouter-6366f1?style=flat-square) | `google/gemini-2.5-flash` |
-| ![OpenRouter](https://img.shields.io/badge/OpenRouter-6366f1?style=flat-square) | `google/gemini-2.5-flash-lite` |
-| ![OpenRouter](https://img.shields.io/badge/OpenRouter-6366f1?style=flat-square) | `google/gemini-2.0-flash-001` |
-| ![OpenRouter](https://img.shields.io/badge/OpenRouter-6366f1?style=flat-square) | `openai/gpt-4o-audio-preview` |
-| ![OpenRouter](https://img.shields.io/badge/OpenRouter-6366f1?style=flat-square) | `mistralai/voxtral-small-24b-2507` |
-| ![Google](https://img.shields.io/badge/Google_(Gemini)-4285F4?style=flat-square&logo=google&logoColor=white) | `gemini-flash-latest` |
-| ![Google](https://img.shields.io/badge/Google_(Gemini)-4285F4?style=flat-square&logo=google&logoColor=white) | `gemini-2.5-flash` |
-| ![Google](https://img.shields.io/badge/Google_(Gemini)-4285F4?style=flat-square&logo=google&logoColor=white) | `gemini-2.5-flash-lite` |
-| ![Google](https://img.shields.io/badge/Google_(Gemini)-4285F4?style=flat-square&logo=google&logoColor=white) | `gemini-2.5-pro` |
-| ![OpenAI](https://img.shields.io/badge/OpenAI-412991?style=flat-square&logo=openai&logoColor=white) | `gpt-4o-audio-preview` |
-| ![OpenAI](https://img.shields.io/badge/OpenAI-412991?style=flat-square&logo=openai&logoColor=white) | `gpt-4o-mini-audio-preview` |
-| ![Mistral](https://img.shields.io/badge/Mistral-FF7000?style=flat-square) | `voxtral-small-latest` |
-| ![Mistral](https://img.shields.io/badge/Mistral-FF7000?style=flat-square) | `voxtral-mini-latest` |
+### ![OpenRouter](https://img.shields.io/badge/OpenRouter-6366f1?style=flat-square) OpenRouter (Recommended)
 
-**OpenRouter** is recommended—single API key for all models with accurate per-key cost tracking.
+Single API key for multiple models with accurate per-key cost tracking.
+
+| Model | Description |
+|-------|-------------|
+| **Gemini 2.5 Flash** | Fast, cost-effective, excellent transcription quality |
+| **Gemini 2.5 Flash Lite** | Ultra-low cost variant, good for quick notes |
+| **Gemini 2.0 Flash** | Previous generation, still highly capable |
+| **GPT-4o Audio Preview** | OpenAI's multimodal flagship, premium quality |
+| **Voxtral Small** | Mistral's audio model, good multilingual support |
+
+### ![Google](https://img.shields.io/badge/Google_(Gemini)-4285F4?style=flat-square&logo=google&logoColor=white) Google AI (Direct)
+
+| Model | Description |
+|-------|-------------|
+| **Gemini Flash Latest** | Auto-updates to newest Flash model |
+| **Gemini 2.5 Flash** | Current generation, best balance |
+| **Gemini 2.5 Flash Lite** | Lightweight, very low cost |
+| **Gemini 2.5 Pro** | Highest quality, slower and more expensive |
+
+### ![OpenAI](https://img.shields.io/badge/OpenAI-412991?style=flat-square&logo=openai&logoColor=white) OpenAI
+
+| Model | Description |
+|-------|-------------|
+| **GPT-4o Audio Preview** | Full GPT-4o with audio understanding |
+| **GPT-4o Mini Audio Preview** | Faster, cheaper variant |
+
+### ![Mistral](https://img.shields.io/badge/Mistral-FF7000?style=flat-square) Mistral AI
+
+| Model | Description |
+|-------|-------------|
+| **Voxtral Small Latest** | 24B parameter audio model |
+| **Voxtral Mini Latest** | Smaller, faster variant |
+
+> **Recommendation:** Use **OpenRouter** for the best experience—one API key gives you access to all models, with accurate per-key cost tracking and live balance updates.
 
 ## Features
 
