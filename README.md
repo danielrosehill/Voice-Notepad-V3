@@ -1,4 +1,4 @@
-# Voice Notepad 
+# AI Transcription Notepad 
 
 ## Combined Transcription And Cleanup Desktop Utility Using Cloud Multimodal AI Models
 
@@ -32,7 +32,8 @@ This is a focused tool for the growing category of audio-capable multimodal mode
 
 ## Supported Providers & Models
 
-### ![OpenRouter](https://img.shields.io/badge/OpenRouter-6366f1?style=flat-square) OpenRouter (Recommended)
+### OpenRouter (Recommended)
+![OpenRouter](https://img.shields.io/badge/OpenRouter-6366f1?style=flat-square)
 
 Single API key for multiple models with accurate per-key cost tracking.
 
@@ -44,7 +45,10 @@ Single API key for multiple models with accurate per-key cost tracking.
 | **GPT-4o Audio Preview** | OpenAI's multimodal flagship, premium quality |
 | **Voxtral Small** | Mistral's audio model, good multilingual support |
 
-### ![Google](https://img.shields.io/badge/Google_(Gemini)-4285F4?style=flat-square&logo=google&logoColor=white) Google AI (Direct)
+---
+
+### Google AI (Direct)
+![Google](https://img.shields.io/badge/Google_(Gemini)-4285F4?style=flat-square&logo=google&logoColor=white)
 
 | Model | Description |
 |-------|-------------|
@@ -53,19 +57,27 @@ Single API key for multiple models with accurate per-key cost tracking.
 | **Gemini 2.5 Flash Lite** | Lightweight, very low cost |
 | **Gemini 2.5 Pro** | Highest quality, slower and more expensive |
 
-### ![OpenAI](https://img.shields.io/badge/OpenAI-412991?style=flat-square&logo=openai&logoColor=white) OpenAI
+---
+
+### OpenAI
+![OpenAI](https://img.shields.io/badge/OpenAI-412991?style=flat-square&logo=openai&logoColor=white)
 
 | Model | Description |
 |-------|-------------|
 | **GPT-4o Audio Preview** | Full GPT-4o with audio understanding |
 | **GPT-4o Mini Audio Preview** | Faster, cheaper variant |
 
-### ![Mistral](https://img.shields.io/badge/Mistral-FF7000?style=flat-square) Mistral AI
+---
+
+### Mistral AI
+![Mistral](https://img.shields.io/badge/Mistral-FF7000?style=flat-square)
 
 | Model | Description |
 |-------|-------------|
 | **Voxtral Small Latest** | 24B parameter audio model |
 | **Voxtral Mini Latest** | Smaller, faster variant |
+
+---
 
 > **Recommendation:** Use **OpenRouter** for the best experience—one API key gives you access to all models, with accurate per-key cost tracking and live balance updates.
 
