@@ -74,6 +74,7 @@ from .models_widget import ModelsWidget
 from .about_widget import AboutWidget
 from .mic_test_widget import MicTestWidget
 from .audio_feedback import get_feedback
+from .file_transcription_widget import FileTranscriptionWidget
 
 
 class HotkeyEdit(QLineEdit):
@@ -980,6 +981,10 @@ class MainWindow(QMainWindow):
 
         self.tabs.addTab(record_tab, "Record")
 
+        # File Transcription tab (right after Record)
+        self.file_transcription_widget = FileTranscriptionWidget()
+        self.tabs.addTab(self.file_transcription_widget, "File")
+
         # History tab
         self.history_widget = HistoryWidget()
         self.history_widget.transcription_selected.connect(self.on_history_transcription_selected)
@@ -1294,14 +1299,14 @@ class MainWindow(QMainWindow):
 
     def on_tab_changed(self, index: int):
         """Handle tab change - refresh data in the selected tab."""
-        # Tabs: 0=Record, 1=History, 2=Cost, 3=Analysis, 4=Models, 5=Mic Test, 6=About
-        if index == 1:  # History tab
+        # Tabs: 0=Record, 1=File, 2=History, 3=Cost, 4=Analysis, 5=Models, 6=Mic Test, 7=About
+        if index == 2:  # History tab
             self.history_widget.refresh()
-        elif index == 2:  # Cost tab
+        elif index == 3:  # Cost tab
             self.cost_widget.refresh()
-        elif index == 3:  # Analysis tab
+        elif index == 4:  # Analysis tab
             self.analysis_widget.refresh()
-        # Models tab (index 4) and About tab (index 5) don't need refresh
+        # File (1), Models (5), Mic Test (6), About (7) don't need refresh
 
     def on_history_transcription_selected(self, text: str):
         """Handle transcription selected from history - put in editor."""

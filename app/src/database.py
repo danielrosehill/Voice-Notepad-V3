@@ -34,12 +34,15 @@ class TranscriptionRecord:
     audio_file_path: Optional[str]
     vad_audio_duration_seconds: Optional[float]
     prompt_text_length: int = 0  # Length of the system prompt sent
+    source: str = "recording"  # "recording" or "file"
+    source_path: Optional[str] = None  # Original file path for file transcriptions
 
     def to_dict(self):
         return asdict(self)
 
     @classmethod
     def from_row(cls, row: sqlite3.Row) -> "TranscriptionRecord":
+        keys = row.keys()
         return cls(
             id=row["id"],
             timestamp=row["timestamp"],
@@ -55,7 +58,9 @@ class TranscriptionRecord:
             word_count=row["word_count"],
             audio_file_path=row["audio_file_path"],
             vad_audio_duration_seconds=row["vad_audio_duration_seconds"],
-            prompt_text_length=row["prompt_text_length"] if "prompt_text_length" in row.keys() else 0,
+            prompt_text_length=row["prompt_text_length"] if "prompt_text_length" in keys else 0,
+            source=row["source"] if "source" in keys else "recording",
+            source_path=row["source_path"] if "source_path" in keys else None,
         )
 
 
@@ -100,7 +105,9 @@ class TranscriptionDB:
                     word_count INTEGER DEFAULT 0,
                     audio_file_path TEXT,
                     vad_audio_duration_seconds REAL,
-                    prompt_text_length INTEGER DEFAULT 0
+                    prompt_text_length INTEGER DEFAULT 0,
+                    source TEXT DEFAULT 'recording',
+                    source_path TEXT
                 );
 
                 CREATE INDEX IF NOT EXISTS idx_timestamp ON transcriptions(timestamp);
@@ -108,6 +115,8 @@ class TranscriptionDB:
             """)
             # Migrate existing tables to add new column if missing
             self._migrate_schema(conn)
+            # Create source index after migration (column may not exist in older DBs)
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_source ON transcriptions(source)")
             conn.commit()
 
     def _migrate_schema(self, conn):
@@ -117,6 +126,12 @@ class TranscriptionDB:
 
         if "prompt_text_length" not in columns:
             conn.execute("ALTER TABLE transcriptions ADD COLUMN prompt_text_length INTEGER DEFAULT 0")
+
+        if "source" not in columns:
+            conn.execute("ALTER TABLE transcriptions ADD COLUMN source TEXT DEFAULT 'recording'")
+
+        if "source_path" not in columns:
+            conn.execute("ALTER TABLE transcriptions ADD COLUMN source_path TEXT")
 
     def save_transcription(
         self,
@@ -131,6 +146,8 @@ class TranscriptionDB:
         audio_file_path: Optional[str] = None,
         vad_audio_duration_seconds: Optional[float] = None,
         prompt_text_length: int = 0,
+        source: str = "recording",
+        source_path: Optional[str] = None,
     ) -> int:
         """Save a transcription and return its ID."""
         with self._lock:
@@ -146,8 +163,9 @@ class TranscriptionDB:
                     audio_duration_seconds, inference_time_ms,
                     input_tokens, output_tokens, estimated_cost,
                     text_length, word_count, audio_file_path,
-                    vad_audio_duration_seconds, prompt_text_length
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    vad_audio_duration_seconds, prompt_text_length,
+                    source, source_path
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     timestamp, provider, model, transcript_text,
@@ -155,6 +173,7 @@ class TranscriptionDB:
                     input_tokens, output_tokens, estimated_cost,
                     text_length, word_count, audio_file_path,
                     vad_audio_duration_seconds, prompt_text_length,
+                    source, source_path,
                 )
             )
             conn.commit()
