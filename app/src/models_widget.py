@@ -10,7 +10,8 @@ from PyQt6.QtWidgets import (
     QTabWidget,
 )
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QFont
+from PyQt6.QtGui import QFont, QIcon
+from pathlib import Path
 
 from .config import GEMINI_MODELS, OPENAI_MODELS, MISTRAL_MODELS, OPENROUTER_MODELS
 
@@ -22,6 +23,7 @@ MODEL_INFO = {
         "note": "Dynamic endpoint - always points to the latest Flash model",
         "audio_support": True,
         "tier": "standard",
+        "recommended": True,
     },
     "gemini-2.5-flash": {
         "note": "Latest generation Flash model with improved capabilities",
@@ -48,6 +50,7 @@ MODEL_INFO = {
         "note": "Smaller, faster, more cost-effective version",
         "audio_support": True,
         "tier": "budget",
+        "recommended": True,
     },
     "gpt-audio": {
         "note": "Dedicated audio model",
@@ -64,6 +67,7 @@ MODEL_INFO = {
         "note": "Mistral's latest small audio model",
         "audio_support": True,
         "tier": "standard",
+        "recommended": True,
     },
     "voxtral-mini-latest": {
         "note": "Compact model optimized for efficiency",
@@ -75,6 +79,7 @@ MODEL_INFO = {
         "note": "Latest Gemini Flash via OpenRouter",
         "audio_support": True,
         "tier": "standard",
+        "recommended": True,
     },
     "google/gemini-2.5-flash-lite": {
         "note": "Budget-friendly Gemini 2.5 Flash Lite",
@@ -197,8 +202,12 @@ class ModelsWidget(QWidget):
             }
         """)
 
-        # Add provider tabs
-        tabs.addTab(
+        # Icons directory
+        icons_dir = Path(__file__).parent / "icons"
+
+        # Add provider tabs with icons
+        # OpenRouter
+        or_tab_idx = tabs.addTab(
             self._create_provider_tab(
                 OPENROUTER_MODELS,
                 "https://openrouter.ai/models?fmt=cards&input_modalities=audio",
@@ -207,8 +216,12 @@ class ModelsWidget(QWidget):
             ),
             "OpenRouter"
         )
+        or_icon_path = icons_dir / "or_icon.png"
+        if or_icon_path.exists():
+            tabs.setTabIcon(or_tab_idx, QIcon(str(or_icon_path)))
 
-        tabs.addTab(
+        # Gemini
+        gemini_tab_idx = tabs.addTab(
             self._create_provider_tab(
                 GEMINI_MODELS,
                 "https://ai.google.dev/gemini-api/docs/models",
@@ -217,8 +230,12 @@ class ModelsWidget(QWidget):
             ),
             "Gemini"
         )
+        gemini_icon_path = icons_dir / "gemini_icon.png"
+        if gemini_icon_path.exists():
+            tabs.setTabIcon(gemini_tab_idx, QIcon(str(gemini_icon_path)))
 
-        tabs.addTab(
+        # OpenAI
+        openai_tab_idx = tabs.addTab(
             self._create_provider_tab(
                 OPENAI_MODELS,
                 "https://platform.openai.com/docs/models",
@@ -226,8 +243,12 @@ class ModelsWidget(QWidget):
             ),
             "OpenAI"
         )
+        openai_icon_path = icons_dir / "openai_icon.png"
+        if openai_icon_path.exists():
+            tabs.setTabIcon(openai_tab_idx, QIcon(str(openai_icon_path)))
 
-        tabs.addTab(
+        # Mistral
+        mistral_tab_idx = tabs.addTab(
             self._create_provider_tab(
                 MISTRAL_MODELS,
                 "https://docs.mistral.ai/capabilities/audio/",
@@ -235,6 +256,9 @@ class ModelsWidget(QWidget):
             ),
             "Mistral"
         )
+        mistral_icon_path = icons_dir / "mistral_icon.png"
+        if mistral_icon_path.exists():
+            tabs.setTabIcon(mistral_tab_idx, QIcon(str(mistral_icon_path)))
 
         container_layout.addWidget(tabs)
 
@@ -311,28 +335,39 @@ class ModelsWidget(QWidget):
 
     def _create_model_entry(self, model_id: str, display_name: str) -> QWidget:
         """Create a widget for a single model entry."""
+        info = MODEL_INFO.get(model_id, {})
+        is_recommended = info.get("recommended", False)
+
+        # Choose background color based on recommendation status
+        if is_recommended:
+            bg_color = "#fff3cd"  # Orange/amber background
+            hover_color = "#ffe5b4"
+        else:
+            bg_color = "#fafafa"
+            hover_color = "#f0f0f0"
+
         widget = QWidget()
-        widget.setStyleSheet("""
-            QWidget {
-                background: #fafafa;
+        widget.setStyleSheet(f"""
+            QWidget {{
+                background: {bg_color};
                 border-radius: 6px;
                 padding: 4px;
-            }
-            QWidget:hover {
-                background: #f0f0f0;
-            }
+            }}
+            QWidget:hover {{
+                background: {hover_color};
+            }}
         """)
 
-        layout = QVBoxLayout(widget)
-        layout.setContentsMargins(12, 8, 12, 8)
-        layout.setSpacing(4)
+        # Horizontal layout for two-column display
+        layout = QHBoxLayout(widget)
+        layout.setContentsMargins(12, 12, 12, 12)
+        layout.setSpacing(16)
 
-        # Model name row
-        name_row = QHBoxLayout()
-        name_row.setSpacing(8)
+        # Left column: Tier indicator + Model name + Recommended badge
+        left_layout = QHBoxLayout()
+        left_layout.setSpacing(8)
 
         # Tier indicator
-        info = MODEL_INFO.get(model_id, {})
         tier = info.get("tier", "standard")
         tier_colors = {
             "budget": "#28a745",
@@ -342,29 +377,37 @@ class ModelsWidget(QWidget):
         color = tier_colors.get(tier, "#007bff")
 
         tier_dot = QLabel("●")
-        tier_dot.setStyleSheet(f"color: {color}; font-size: 12px; background: transparent;")
-        tier_dot.setFixedWidth(16)
-        name_row.addWidget(tier_dot)
+        tier_dot.setStyleSheet(f"color: {color}; font-size: 14px; background: transparent;")
+        tier_dot.setFixedWidth(20)
+        left_layout.addWidget(tier_dot)
 
-        # Display name
+        # Model name (larger font)
         name_label = QLabel(f"<b style='color: #333;'>{display_name}</b>")
-        name_label.setStyleSheet("background: transparent;")
-        name_row.addWidget(name_label)
-        name_row.addStretch()
+        name_label.setStyleSheet("background: transparent; font-size: 13px;")
+        name_label.setFixedWidth(300)  # Fixed width for alignment
+        left_layout.addWidget(name_label)
 
-        layout.addLayout(name_row)
+        # Recommended badge (if applicable)
+        if is_recommended:
+            rec_badge = QLabel("Recommended")
+            rec_badge.setStyleSheet("""
+                background: #ff8800;
+                color: white;
+                font-size: 10px;
+                font-weight: bold;
+                padding: 3px 8px;
+                border-radius: 4px;
+            """)
+            rec_badge.setFixedHeight(20)
+            left_layout.addWidget(rec_badge)
 
-        # Model ID
-        id_label = QLabel(f"<code style='color: #666; background: #e8e8e8; padding: 1px 4px; border-radius: 3px;'>{model_id}</code>")
-        id_label.setStyleSheet("font-size: 10px; margin-left: 24px; background: transparent;")
-        layout.addWidget(id_label)
+        layout.addLayout(left_layout)
 
-        # Note if available
+        # Right column: Description
         note = info.get("note", "")
-        if note:
-            note_label = QLabel(note)
-            note_label.setStyleSheet("color: #888; font-size: 10px; margin-left: 24px; background: transparent;")
-            note_label.setWordWrap(True)
-            layout.addWidget(note_label)
+        note_label = QLabel(note if note else "—")
+        note_label.setStyleSheet("color: #666; font-size: 12px; background: transparent;")
+        note_label.setWordWrap(True)
+        layout.addWidget(note_label, 1)  # Stretch factor of 1 to fill remaining space
 
         return widget

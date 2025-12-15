@@ -78,7 +78,7 @@ class Config:
 
     # Model names per provider
     gemini_model: str = "gemini-flash-latest"
-    openai_model: str = "gpt-4o-audio-preview"
+    openai_model: str = "gpt-4o-mini-audio-preview"
     mistral_model: str = "voxtral-small-latest"
     openrouter_model: str = "google/gemini-2.5-flash"
 
@@ -136,6 +136,7 @@ class Config:
     prompt_follow_instructions: bool = True  # Follow verbal instructions (don't include this, etc.)
     prompt_add_subheadings: bool = False     # Add ## headings for lengthy content
     prompt_markdown_formatting: bool = False  # Use bold, lists, etc.
+    prompt_remove_unintentional_dialogue: bool = False  # Remove accidental dialogue from others
 
     # Legacy field - kept for backwards compatibility but not used directly
     # The prompt is now built from the above boolean flags
@@ -146,8 +147,10 @@ class Config:
     formality_level: str = "neutral"    # casual, neutral, professional
     verbosity_reduction: str = "none"   # none, minimum, short, medium, maximum
 
-    # Email signature settings (used when format_preset == "email")
+    # User profile settings (used when format_preset == "email" or similar)
     user_name: str = ""
+    user_email: str = ""
+    user_phone: str = ""
     email_signature: str = "Best regards"
 
 
@@ -243,6 +246,11 @@ PROMPT_COMPONENTS = [
         "Use markdown formatting where appropriate (bold, lists, etc.)",
         "Use markdown formatting (bold, lists...)"
     ),
+    (
+        "prompt_remove_unintentional_dialogue",
+        "If you detect dialogue that appears to be unintentional (e.g., someone else speaking to the user during the recording), only remove it if you can infer with high certainty that it was accidental. If uncertain, keep the dialogue in the transcription.",
+        "Remove unintentional dialogue (if detectable)"
+    ),
 ]
 
 
@@ -337,10 +345,23 @@ def build_cleanup_prompt(config: Config) -> str:
     if verbosity_template:
         lines.append(f"- {verbosity_template}")
 
-    # Add email signature if format is email and user has configured their name
-    if config.format_preset == "email" and config.user_name:
-        sign_off = config.email_signature or "Best regards"
-        lines.append(f"- End the email with the sign-off: \"{sign_off},\" followed by the sender's name: \"{config.user_name}\"")
+    # Add user profile if format is email and user has configured their information
+    if config.format_preset == "email":
+        if config.user_name or config.user_email or config.user_phone:
+            profile_parts = []
+            if config.user_name:
+                profile_parts.append(f"Name: {config.user_name}")
+            if config.user_email:
+                profile_parts.append(f"Email: {config.user_email}")
+            if config.user_phone:
+                profile_parts.append(f"Phone: {config.user_phone}")
+
+            profile_info = ", ".join(profile_parts)
+            lines.append(f"- Draft the email from the following person: {profile_info}")
+
+        if config.user_name:
+            sign_off = config.email_signature or "Best regards"
+            lines.append(f"- End the email with the sign-off: \"{sign_off},\" followed by the sender's name: \"{config.user_name}\"")
 
     # Always include output format instruction
     lines.append("- Output ONLY the cleaned transcription in markdown format, no commentary or preamble")

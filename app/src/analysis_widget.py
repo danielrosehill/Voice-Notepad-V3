@@ -55,6 +55,16 @@ def format_size(size_bytes: int) -> str:
         return f"{size_bytes / (1024 * 1024 * 1024):.2f} GB"
 
 
+def format_word_count(count: int) -> str:
+    """Format word count to K notation (rounded up to nearest thousand)."""
+    import math
+    if count == 0:
+        return "0"
+    # Round up to nearest thousand
+    thousands = math.ceil(count / 1000)
+    return f"{thousands}K"
+
+
 class AnalysisWidget(QWidget):
     """Widget for viewing transcription analytics."""
 
@@ -87,16 +97,22 @@ class AnalysisWidget(QWidget):
 
         self.stat_labels = {}
         stat_items = [
-            ("transcriptions", "Transcriptions"),
-            ("total_cost", "Total Cost"),
-            ("avg_inference", "Avg Inference"),
-            ("total_words", "Total Words"),
+            ("transcriptions", "Transcriptions", "📄"),
+            ("total_cost", "Total Cost", "💰"),
+            ("avg_inference", "Avg Inference", "⚡"),
+            ("total_words", "Total Words", "📝"),
         ]
 
-        for key, label in stat_items:
+        for key, label, icon in stat_items:
             stat_widget = QWidget()
             stat_vbox = QVBoxLayout(stat_widget)
             stat_vbox.setSpacing(2)
+
+            # Icon
+            icon_label = QLabel(icon)
+            icon_label.setFont(QFont("Sans", 24))
+            icon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            stat_vbox.addWidget(icon_label)
 
             value_label = QLabel("--")
             value_label.setFont(QFont("Sans", 18, QFont.Weight.Bold))
@@ -165,7 +181,7 @@ class AnalysisWidget(QWidget):
         self.stat_labels["avg_inference"].setText(
             f"{recent['avg_inference_ms'] / 1000.0:.1f}s" if recent['avg_inference_ms'] else "--"
         )
-        self.stat_labels["total_words"].setText(f"{recent['total_words']:,}")
+        self.stat_labels["total_words"].setText(format_word_count(recent['total_words']))
 
         # Model performance
         performance = db.get_model_performance()

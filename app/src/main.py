@@ -43,7 +43,7 @@ from PyQt6.QtWidgets import (
     QButtonGroup,
     QGroupBox,
 )
-from PyQt6.QtCore import Qt, QThread, pyqtSignal, QTimer
+from PyQt6.QtCore import Qt, QThread, pyqtSignal, QTimer, QSize
 import time
 from PyQt6.QtGui import QIcon, QAction, QFont, QClipboard, QShortcut, QKeySequence
 
@@ -196,7 +196,7 @@ class SettingsDialog(QDialog):
         self.config = config
         self.recorder = recorder
         self.setWindowTitle("Settings")
-        self.setMinimumWidth(500)
+        self.setMinimumWidth(650)
         self.setup_ui()
 
     def setup_ui(self):
@@ -361,6 +361,70 @@ class SettingsDialog(QDialog):
 
         tabs.addTab(behavior_tab, "Behavior")
 
+        # Personalization tab
+        personalization_tab = QWidget()
+        personalization_layout = QFormLayout(personalization_tab)
+
+        # Info label
+        personalization_info = QLabel(
+            "Configure your personal information to automatically include in emails and letters.\n"
+            "These fields are only used when the 'Email' or 'Letter' format preset is selected."
+        )
+        personalization_info.setWordWrap(True)
+        personalization_info.setStyleSheet("color: #666; margin-bottom: 15px;")
+        personalization_layout.addRow(personalization_info)
+
+        # User name
+        self.user_name = QLineEdit(self.config.user_name)
+        self.user_name.setPlaceholderText("e.g., Daniel Rosehill")
+        personalization_layout.addRow("Name:", self.user_name)
+
+        # User email
+        self.user_email = QLineEdit(self.config.user_email)
+        self.user_email.setPlaceholderText("e.g., daniel@example.com")
+        personalization_layout.addRow("Email:", self.user_email)
+
+        # User phone
+        self.user_phone = QLineEdit(self.config.user_phone)
+        self.user_phone.setPlaceholderText("e.g., +1-555-0100")
+        personalization_layout.addRow("Phone:", self.user_phone)
+
+        # Email signature section
+        personalization_layout.addRow(QLabel(""))  # Spacer
+        signature_label = QLabel("Email Signature")
+        signature_label.setStyleSheet("font-weight: bold; margin-top: 10px;")
+        personalization_layout.addRow(signature_label)
+
+        # Email signature with dropdown presets
+        signature_container = QWidget()
+        signature_layout = QVBoxLayout(signature_container)
+        signature_layout.setContentsMargins(0, 0, 0, 0)
+        signature_layout.setSpacing(4)
+
+        # Dropdown for common sign-offs
+        self.email_signature_combo = QComboBox()
+        self.email_signature_combo.setEditable(True)
+        for signoff in EMAIL_SIGNOFFS:
+            self.email_signature_combo.addItem(signoff)
+        # Set current value
+        current_sig = self.config.email_signature or "Best regards"
+        idx = self.email_signature_combo.findText(current_sig)
+        if idx >= 0:
+            self.email_signature_combo.setCurrentIndex(idx)
+        else:
+            self.email_signature_combo.setEditText(current_sig)
+
+        signature_layout.addWidget(self.email_signature_combo)
+
+        # Help text
+        sig_help = QLabel("Sign-off phrase (e.g., 'Best regards', 'Sincerely')")
+        sig_help.setStyleSheet("font-size: 10px; color: #888;")
+        signature_layout.addWidget(sig_help)
+
+        personalization_layout.addRow("Sign-off:", signature_container)
+
+        tabs.addTab(personalization_tab, "Personalization")
+
         # Hotkeys tab
         hotkeys_tab = QWidget()
         hotkeys_layout = QVBoxLayout(hotkeys_tab)
@@ -444,6 +508,81 @@ class SettingsDialog(QDialog):
 
         hotkeys_layout.addStretch()
         tabs.addTab(hotkeys_tab, "Hotkeys")
+
+        # Database tab
+        database_tab = QWidget()
+        database_layout = QVBoxLayout(database_tab)
+
+        # Database info section
+        info_group = QGroupBox("Database Information")
+        info_layout = QFormLayout(info_group)
+
+        db = get_db()
+        stats = db.get_storage_stats()
+
+        self.db_records_label = QLabel(f"{stats['total_records']:,}")
+        info_layout.addRow("Total Transcriptions:", self.db_records_label)
+
+        db_size_mb = stats['db_size_bytes'] / (1024 * 1024)
+        self.db_size_label = QLabel(f"{db_size_mb:.2f} MB")
+        info_layout.addRow("Database Size:", self.db_size_label)
+
+        audio_size_mb = stats['audio_size_bytes'] / (1024 * 1024)
+        self.db_audio_label = QLabel(f"{audio_size_mb:.2f} MB ({stats['records_with_audio']} files)")
+        info_layout.addRow("Archived Audio:", self.db_audio_label)
+
+        total_size_mb = stats['total_size_bytes'] / (1024 * 1024)
+        self.db_total_label = QLabel(f"{total_size_mb:.2f} MB")
+        info_layout.addRow("Total Storage:", self.db_total_label)
+
+        fts_status = "Enabled ✓" if db.is_fts_enabled() else "Disabled"
+        self.db_fts_label = QLabel(fts_status)
+        info_layout.addRow("Full-Text Search:", self.db_fts_label)
+
+        database_layout.addWidget(info_group)
+
+        # Maintenance section
+        maintenance_group = QGroupBox("Database Maintenance")
+        maintenance_layout = QVBoxLayout(maintenance_group)
+
+        # VACUUM button
+        vacuum_container = QWidget()
+        vacuum_layout = QHBoxLayout(vacuum_container)
+        vacuum_layout.setContentsMargins(0, 0, 0, 0)
+
+        vacuum_btn = QPushButton("Optimize Database (VACUUM)")
+        vacuum_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #007bff;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                padding: 8px 16px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #0056b3;
+            }
+        """)
+        vacuum_btn.clicked.connect(self._on_vacuum_database)
+        vacuum_layout.addWidget(vacuum_btn)
+
+        vacuum_info = QLabel("Reclaims disk space after deleting transcriptions")
+        vacuum_info.setStyleSheet("color: #666; font-size: 11px;")
+        vacuum_layout.addWidget(vacuum_info)
+        vacuum_layout.addStretch()
+
+        maintenance_layout.addWidget(vacuum_container)
+
+        # Refresh stats button
+        refresh_btn = QPushButton("Refresh Statistics")
+        refresh_btn.clicked.connect(self._refresh_db_stats)
+        maintenance_layout.addWidget(refresh_btn)
+
+        database_layout.addWidget(maintenance_group)
+
+        database_layout.addStretch()
+        tabs.addTab(database_tab, "Database")
 
         # Initial visibility update
         self._update_hotkey_fields_visibility()
@@ -544,6 +683,55 @@ class SettingsDialog(QDialog):
         elif mode == "ptt":
             self.hotkey_ptt.setText(SUGGESTED_HOTKEYS["ptt"])
 
+    def _refresh_db_stats(self):
+        """Refresh database statistics display."""
+        db = get_db()
+        stats = db.get_storage_stats()
+
+        self.db_records_label.setText(f"{stats['total_records']:,}")
+
+        db_size_mb = stats['db_size_bytes'] / (1024 * 1024)
+        self.db_size_label.setText(f"{db_size_mb:.2f} MB")
+
+        audio_size_mb = stats['audio_size_bytes'] / (1024 * 1024)
+        self.db_audio_label.setText(f"{audio_size_mb:.2f} MB ({stats['records_with_audio']} files)")
+
+        total_size_mb = stats['total_size_bytes'] / (1024 * 1024)
+        self.db_total_label.setText(f"{total_size_mb:.2f} MB")
+
+        fts_status = "Enabled ✓" if db.is_fts_enabled() else "Disabled"
+        self.db_fts_label.setText(fts_status)
+
+    def _on_vacuum_database(self):
+        """Run VACUUM to optimize database."""
+        reply = QMessageBox.question(
+            self,
+            "Optimize Database",
+            "This will optimize the database and reclaim unused disk space.\n\n"
+            "The database will be locked during this operation, which may take a few seconds.\n\n"
+            "Continue?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.Yes,
+        )
+
+        if reply == QMessageBox.StandardButton.Yes:
+            db = get_db()
+            if db.vacuum():
+                QMessageBox.information(
+                    self,
+                    "Optimization Complete",
+                    "Database has been optimized successfully.\n\n"
+                    "Disk space has been reclaimed.",
+                )
+                self._refresh_db_stats()
+            else:
+                QMessageBox.warning(
+                    self,
+                    "Optimization Failed",
+                    "Failed to optimize database.\n\n"
+                    "Please check the console for error details.",
+                )
+
     def save_settings(self):
         self.config.gemini_api_key = self.gemini_key.text()
         self.config.openai_api_key = self.openai_key.text()
@@ -581,6 +769,13 @@ class SettingsDialog(QDialog):
         self.config.store_audio = self.store_audio.isChecked()
         # Audio feedback
         self.config.beep_on_record = self.beep_on_record.isChecked()
+
+        # Personalization settings
+        self.config.user_name = self.user_name.text().strip()
+        self.config.user_email = self.user_email.text().strip()
+        self.config.user_phone = self.user_phone.text().strip()
+        self.config.email_signature = self.email_signature_combo.currentText().strip()
+
         save_config(self.config)
         self.accept()
 
@@ -603,6 +798,7 @@ class MainWindow(QMainWindow):
         self.accumulated_segments: list[bytes] = []  # For append mode
         self.accumulated_duration: float = 0.0
         self.append_mode: bool = False  # Track if next transcription should append
+        self.has_cached_audio: bool = False  # Track if we have stopped audio waiting to be transcribed
 
         self.setWindowTitle("Voice Notepad")
         self.setMinimumSize(480, 550)
@@ -622,6 +818,44 @@ class MainWindow(QMainWindow):
         # Start minimized if configured
         if self.config.start_minimized:
             self.hide()
+
+    def _get_provider_icon(self, provider: str) -> QIcon:
+        """Get the icon for a given provider."""
+        icons_dir = Path(__file__).parent / "icons"
+        icon_map = {
+            "openrouter": "or_icon.png",
+            "open router": "or_icon.png",
+            "gemini": "gemini_icon.png",
+            "google": "gemini_icon.png",
+            "openai": "openai_icon.png",
+            "mistral": "mistral_icon.png",
+        }
+        icon_filename = icon_map.get(provider.lower(), "")
+        if icon_filename:
+            icon_path = icons_dir / icon_filename
+            if icon_path.exists():
+                return QIcon(str(icon_path))
+        return QIcon()  # Return empty icon if not found
+
+    def _get_model_icon(self, model_id: str) -> QIcon:
+        """Get the icon for a model based on its originator (not inference provider)."""
+        icons_dir = Path(__file__).parent / "icons"
+        model_lower = model_id.lower()
+
+        # Determine model originator from model ID
+        if model_lower.startswith("google/") or model_lower.startswith("gemini"):
+            icon_filename = "gemini_icon.png"
+        elif model_lower.startswith("openai/") or model_lower.startswith("gpt"):
+            icon_filename = "openai_icon.png"
+        elif model_lower.startswith("mistralai/") or model_lower.startswith("voxtral"):
+            icon_filename = "mistral_icon.png"
+        else:
+            return QIcon()  # No icon for unknown models
+
+        icon_path = icons_dir / icon_filename
+        if icon_path.exists():
+            return QIcon(str(icon_path))
+        return QIcon()
 
     def _on_recorder_error(self, error_msg: str):
         """Called from recorder thread when an error occurs."""
@@ -644,14 +878,20 @@ class MainWindow(QMainWindow):
         self.record_btn.setStyleSheet(self._record_btn_idle_style)
         self.record_btn.setEnabled(True)
         self.pause_btn.setEnabled(False)
-        # Keep transcribe enabled if we have audio
-        if self.recorder.frames or self.accumulated_segments:
-            self.stop_btn.setEnabled(True)
+        # Keep transcribe enabled if we have cached audio
+        if self.accumulated_segments:
+            self.has_cached_audio = True
+            self.stop_btn.setEnabled(False)
+            self.transcribe_btn.setEnabled(True)
+            self.transcribe_btn.setStyleSheet(self._transcribe_btn_idle_style)  # Green when cached
+            self.append_btn.setEnabled(True)
             self.delete_btn.setEnabled(True)
         else:
+            self.has_cached_audio = False
             self.stop_btn.setEnabled(False)
+            self.transcribe_btn.setEnabled(False)
+            self.append_btn.setEnabled(False)
             self.delete_btn.setEnabled(False)
-        self.append_btn.setEnabled(False)
         self._set_tray_state('idle')
 
     def setup_ui(self):
@@ -664,15 +904,28 @@ class MainWindow(QMainWindow):
 
         # Header with settings
         header = QHBoxLayout()
-        title = QLabel("Voice Notepad")
-        title.setFont(QFont("Sans", 16, QFont.Weight.Bold))
-        header.addWidget(title)
         header.addStretch()
 
         settings_btn = QPushButton("Settings")
         settings_btn.clicked.connect(self.show_settings)
         header.addWidget(settings_btn)
         main_layout.addLayout(header)
+
+        # Status indicator (tally light)
+        self.status_indicator = QLabel("● READY")
+        self.status_indicator.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.status_indicator.setStyleSheet("""
+            QLabel {
+                background-color: #f8f9fa;
+                color: #6c757d;
+                padding: 8px 16px;
+                border-radius: 4px;
+                font-weight: bold;
+                font-size: 13px;
+                border: 2px solid #dee2e6;
+            }
+        """)
+        main_layout.addWidget(self.status_indicator)
 
         # Main tabs
         self.tabs = QTabWidget()
@@ -688,7 +941,17 @@ class MainWindow(QMainWindow):
 
         provider_layout.addWidget(QLabel("Provider:"))
         self.provider_combo = QComboBox()
-        self.provider_combo.addItems(["Open Router", "Google", "OpenAI", "Mistral"])
+        self.provider_combo.setIconSize(QSize(16, 16))
+        # Add providers with icons
+        providers = [
+            ("Open Router", "openrouter"),
+            ("Google", "google"),
+            ("OpenAI", "openai"),
+            ("Mistral", "mistral")
+        ]
+        for display_name, provider_key in providers:
+            icon = self._get_provider_icon(provider_key)
+            self.provider_combo.addItem(icon, display_name)
         # Handle display name mapping for provider
         provider_map = {
             "openrouter": "Open Router",
@@ -705,6 +968,7 @@ class MainWindow(QMainWindow):
 
         provider_layout.addWidget(QLabel("Model:"))
         self.model_combo = QComboBox()
+        self.model_combo.setIconSize(QSize(16, 16))
         self.update_model_combo()  # Populate based on current provider
         self.model_combo.currentIndexChanged.connect(self.on_model_changed)
         provider_layout.addWidget(self.model_combo, 1)
@@ -754,9 +1018,9 @@ class MainWindow(QMainWindow):
         # Update tier button states based on current model
         self._update_tier_buttons()
 
-        # Prompt Controls (collapsible) - combines cleanup options and format settings
+        # Formatting Prompt (collapsible) - combines cleanup options and format settings
         prompt_header = QHBoxLayout()
-        self.prompt_toggle_btn = QPushButton("▶ Prompt Controls")
+        self.prompt_toggle_btn = QPushButton("▶ Formatting Prompt")
         self.prompt_toggle_btn.setStyleSheet("""
             QPushButton {
                 border: none;
@@ -771,6 +1035,27 @@ class MainWindow(QMainWindow):
         """)
         self.prompt_toggle_btn.clicked.connect(self._toggle_prompt_options)
         prompt_header.addWidget(self.prompt_toggle_btn)
+
+        # Help icon with tooltip
+        help_icon = QLabel("?")
+        help_icon.setStyleSheet("""
+            QLabel {
+                color: #6c757d;
+                font-size: 11px;
+                font-weight: bold;
+                border: 1px solid #6c757d;
+                border-radius: 8px;
+                padding: 0px 4px;
+                margin-left: 4px;
+            }
+        """)
+        help_icon.setToolTip(
+            "These parameters control the system/formatting prompt that gets applied "
+            "in conjunction with the audio file to generate a formatted transcription."
+        )
+        help_icon.setFixedSize(16, 16)
+        prompt_header.addWidget(help_icon)
+
         prompt_header.addStretch()
         layout.addLayout(prompt_header)
 
@@ -859,7 +1144,7 @@ class MainWindow(QMainWindow):
         format_tone_row.addStretch()
         prompt_options_layout.addLayout(format_tone_row)
 
-        # Email settings (conditionally visible)
+        # User Profile settings (conditionally visible)
         self.email_settings_frame = QFrame()
         self.email_settings_frame.setStyleSheet("""
             QFrame {
@@ -871,23 +1156,32 @@ class MainWindow(QMainWindow):
             }
         """)
 
-        email_layout = QHBoxLayout(self.email_settings_frame)
-        email_layout.setSpacing(8)
-        email_layout.setContentsMargins(8, 6, 8, 6)
+        email_form = QFormLayout(self.email_settings_frame)
+        email_form.setSpacing(6)
+        email_form.setContentsMargins(8, 6, 8, 6)
+        email_form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.ExpandingFieldsGrow)
 
-        email_layout.addWidget(QLabel("Your name:"))
+        # Name field
         self.user_name_edit = QLineEdit(self.config.user_name)
-        self.user_name_edit.setPlaceholderText("e.g., Daniel")
-        self.user_name_edit.setMaximumWidth(150)
+        self.user_name_edit.setPlaceholderText("e.g., Daniel Rosehill")
         self.user_name_edit.textChanged.connect(self._on_email_settings_changed)
-        email_layout.addWidget(self.user_name_edit)
+        email_form.addRow("Your name:", self.user_name_edit)
 
-        email_layout.addSpacing(10)
+        # Email field
+        self.user_email_edit = QLineEdit(self.config.user_email)
+        self.user_email_edit.setPlaceholderText("e.g., daniel@example.com")
+        self.user_email_edit.textChanged.connect(self._on_email_settings_changed)
+        email_form.addRow("Email address:", self.user_email_edit)
 
-        email_layout.addWidget(QLabel("Sign-off:"))
+        # Phone field
+        self.user_phone_edit = QLineEdit(self.config.user_phone)
+        self.user_phone_edit.setPlaceholderText("e.g., +972-555-1234")
+        self.user_phone_edit.textChanged.connect(self._on_email_settings_changed)
+        email_form.addRow("Phone number:", self.user_phone_edit)
+
+        # Sign-off field
         self.signoff_combo = QComboBox()
         self.signoff_combo.setEditable(True)
-        self.signoff_combo.setMaximumWidth(120)
         for signoff in EMAIL_SIGNOFFS:
             self.signoff_combo.addItem(signoff)
         idx = self.signoff_combo.findText(self.config.email_signature)
@@ -896,27 +1190,14 @@ class MainWindow(QMainWindow):
         else:
             self.signoff_combo.setEditText(self.config.email_signature)
         self.signoff_combo.currentTextChanged.connect(self._on_email_settings_changed)
-        email_layout.addWidget(self.signoff_combo)
+        email_form.addRow("Email sign-off:", self.signoff_combo)
 
-        email_layout.addStretch()
         prompt_options_layout.addWidget(self.email_settings_frame)
 
         # Show/hide email settings based on current format
         self._update_email_settings_visibility()
 
         layout.addWidget(self.prompt_options_frame)
-
-        # Microphone indicator
-        mic_layout = QHBoxLayout()
-        mic_question = QLabel("🎤 Where are you recording from?")
-        mic_question.setStyleSheet("color: #555; font-size: 12px; font-weight: bold;")
-        mic_layout.addWidget(mic_question)
-        self.mic_label = QLabel()
-        self.mic_label.setStyleSheet("color: #007bff; font-size: 12px; font-weight: bold;")
-        mic_layout.addWidget(self.mic_label)
-        mic_layout.addStretch()
-        layout.addLayout(mic_layout)
-        self._update_mic_display()
 
         # Recording status and duration
         status_layout = QHBoxLayout()
@@ -941,6 +1222,10 @@ class MainWindow(QMainWindow):
 
         self.record_btn = QPushButton("● Record")
         self.record_btn.setMinimumHeight(45)
+        self.record_btn.setToolTip(
+            "Start a new recording.\n"
+            "Clears any cached audio and begins fresh."
+        )
         # Store styles for different states
         self._record_btn_idle_style = """
             QPushButton {
@@ -975,13 +1260,20 @@ class MainWindow(QMainWindow):
         self.pause_btn = QPushButton("Pause")
         self.pause_btn.setMinimumHeight(45)
         self.pause_btn.setEnabled(False)
+        self.pause_btn.setToolTip(
+            "Pause/resume the current recording.\n"
+            "Only available while recording is active."
+        )
         self.pause_btn.clicked.connect(self.toggle_pause)
         controls.addWidget(self.pause_btn)
 
         self.append_btn = QPushButton("Append")
         self.append_btn.setMinimumHeight(45)
         self.append_btn.setEnabled(False)
-        self.append_btn.setToolTip("Record and append more content to the current transcription")
+        self.append_btn.setToolTip(
+            "Record additional audio and combine with cached audio.\n"
+            "Useful for recording in segments - all clips are transcribed together."
+        )
         self.append_btn.setStyleSheet("""
             QPushButton {
                 background-color: #17a2b8;
@@ -1002,10 +1294,43 @@ class MainWindow(QMainWindow):
         self.append_btn.clicked.connect(self.append_to_transcription)
         controls.addWidget(self.append_btn)
 
-        self.stop_btn = QPushButton("Transcribe")
+        self.stop_btn = QPushButton("Stop")
         self.stop_btn.setMinimumHeight(45)
         self.stop_btn.setEnabled(False)
+        self.stop_btn.setToolTip(
+            "Stop recording and cache audio without transcribing.\n"
+            "You can then Append more clips, Transcribe, or Delete."
+        )
         self.stop_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #ffc107;
+                color: black;
+                border: none;
+                border-radius: 6px;
+                font-weight: bold;
+                font-size: 14px;
+            }
+            QPushButton:hover {
+                background-color: #e0a800;
+            }
+            QPushButton:disabled {
+                background-color: #6c757d;
+                color: #aaa;
+            }
+        """)
+        self.stop_btn.clicked.connect(self.handle_stop_button)
+        controls.addWidget(self.stop_btn)
+
+        self.transcribe_btn = QPushButton("Transcribe")
+        self.transcribe_btn.setMinimumHeight(45)
+        self.transcribe_btn.setEnabled(False)
+        self.transcribe_btn.setToolTip(
+            "Transcribe audio to text.\n"
+            "• While recording: Stops and transcribes immediately\n"
+            "• After stopping: Transcribes cached audio"
+        )
+        # Store styles for different states (yellow while recording, green when cached)
+        self._transcribe_btn_idle_style = """
             QPushButton {
                 background-color: #28a745;
                 color: white;
@@ -1021,13 +1346,35 @@ class MainWindow(QMainWindow):
                 background-color: #6c757d;
                 color: #aaa;
             }
-        """)
-        self.stop_btn.clicked.connect(self.stop_and_transcribe)
-        controls.addWidget(self.stop_btn)
+        """
+        self._transcribe_btn_recording_style = """
+            QPushButton {
+                background-color: #ffc107;
+                color: black;
+                border: none;
+                border-radius: 6px;
+                font-weight: bold;
+                font-size: 14px;
+            }
+            QPushButton:hover {
+                background-color: #e0a800;
+            }
+            QPushButton:disabled {
+                background-color: #6c757d;
+                color: #aaa;
+            }
+        """
+        self.transcribe_btn.setStyleSheet(self._transcribe_btn_idle_style)
+        self.transcribe_btn.clicked.connect(self.stop_and_transcribe)
+        controls.addWidget(self.transcribe_btn)
 
         self.delete_btn = QPushButton("Delete")
         self.delete_btn.setMinimumHeight(45)
         self.delete_btn.setEnabled(False)
+        self.delete_btn.setToolTip(
+            "Discard all cached audio without transcribing.\n"
+            "Use this to abandon a recording without sending it to the API."
+        )
         self.delete_btn.clicked.connect(self.delete_recording)
         controls.addWidget(self.delete_btn)
 
@@ -1069,14 +1416,29 @@ class MainWindow(QMainWindow):
 
         layout.addLayout(bottom)
 
-        # Spend monitor at the bottom
+        # Bottom status bar: microphone (left) and cost (center)
+        status_bar = QHBoxLayout()
+
+        # Microphone info (left)
+        self.mic_label = QLabel()
+        self.mic_label.setStyleSheet("color: #888; font-size: 10px;")
+        status_bar.addWidget(self.mic_label)
+
+        status_bar.addStretch()
+
+        # Cost info (center)
         self.cost_label = QLabel("")
         self.cost_label.setTextFormat(Qt.TextFormat.RichText)
         self.cost_label.setStyleSheet("color: #888; font-size: 11px;")
         self.cost_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(self.cost_label)
+        status_bar.addWidget(self.cost_label)
 
-        # Initialize cost display
+        status_bar.addStretch()
+
+        layout.addLayout(status_bar)
+
+        # Initialize mic and cost displays
+        self._update_mic_display()
         self._update_cost_display()
 
         self.tabs.addTab(record_tab, "Record")
@@ -1176,7 +1538,7 @@ class MainWindow(QMainWindow):
         self._tray_delete_action = QAction("Delete Recording", self)
         self._tray_delete_action.triggered.connect(self._tray_delete_stopped)
 
-        self._tray_resume_action = QAction("Resume Recording", self)
+        self._tray_resume_action = QAction("Append Clip", self)
         self._tray_resume_action.triggered.connect(self._tray_resume_recording)
 
         self._tray_quit_action = QAction("Quit", self)
@@ -1464,8 +1826,10 @@ class MainWindow(QMainWindow):
             models = MISTRAL_MODELS
             current_model = self.config.mistral_model
 
+        # Add models with model originator icon
         for model_id, display_name in models:
-            self.model_combo.addItem(display_name, model_id)
+            model_icon = self._get_model_icon(model_id)
+            self.model_combo.addItem(model_icon, display_name, model_id)
 
         # Select current model
         idx = self.model_combo.findData(current_model)
@@ -1537,10 +1901,10 @@ class MainWindow(QMainWindow):
         self.budget_btn.blockSignals(False)
 
     def _toggle_prompt_options(self):
-        """Toggle visibility of prompt controls panel."""
+        """Toggle visibility of formatting prompt panel."""
         visible = not self.prompt_options_frame.isVisible()
         self.prompt_options_frame.setVisible(visible)
-        self.prompt_toggle_btn.setText("▼ Prompt Controls" if visible else "▶ Prompt Controls")
+        self.prompt_toggle_btn.setText("▼ Formatting Prompt" if visible else "▶ Formatting Prompt")
 
     def _on_prompt_option_changed(self):
         """Handle prompt option checkbox changes - save immediately."""
@@ -1568,8 +1932,10 @@ class MainWindow(QMainWindow):
         save_config(self.config)
 
     def _on_email_settings_changed(self):
-        """Handle email name/sign-off changes."""
+        """Handle user profile changes (name, email, phone, sign-off)."""
         self.config.user_name = self.user_name_edit.text()
+        self.config.user_email = self.user_email_edit.text()
+        self.config.user_phone = self.user_phone_edit.text()
         self.config.email_signature = self.signoff_combo.currentText()
         save_config(self.config)
 
@@ -1642,8 +2008,10 @@ class MainWindow(QMainWindow):
             self.record_btn.setStyleSheet(self._record_btn_recording_style)
             self.pause_btn.setEnabled(True)
             self.append_btn.setEnabled(False)  # Disable append while recording
-            self.stop_btn.setEnabled(True)
-            self.delete_btn.setEnabled(True)
+            self.stop_btn.setEnabled(True)  # Can stop recording to cache
+            self.transcribe_btn.setEnabled(True)  # Can stop and transcribe immediately
+            self.transcribe_btn.setStyleSheet(self._transcribe_btn_recording_style)  # Yellow while recording
+            self.delete_btn.setEnabled(True)  # Can delete current recording
             self.status_label.setText("Recording...")
             self.status_label.setStyleSheet("color: #dc3545; font-weight: bold;")
             self.timer.start(100)
@@ -1663,16 +2031,133 @@ class MainWindow(QMainWindow):
             self.status_label.setText("Paused")
             self.status_label.setStyleSheet("color: #ffc107; font-weight: bold;")
 
+    def handle_stop_button(self):
+        """Stop recording and cache audio without transcribing."""
+        if not self.recorder.is_recording:
+            return
+
+        # Play stop beep
+        feedback = get_feedback()
+        feedback.enabled = self.config.beep_on_record
+        feedback.play_stop_beep()
+
+        self.timer.stop()
+        audio_data = self.recorder.stop_recording()
+
+        # Add to accumulated segments
+        self.accumulated_segments.append(audio_data)
+        audio_info = get_audio_info(audio_data)
+        self.accumulated_duration += audio_info["duration_seconds"]
+        self._update_segment_indicator()
+
+        # Mark that we have cached audio
+        self.has_cached_audio = True
+
+        # Update UI to "stopped with cached audio" state
+        self.record_btn.setText("● Record")
+        self.record_btn.setStyleSheet(self._record_btn_idle_style)
+        self.record_btn.setEnabled(True)
+        self.pause_btn.setEnabled(False)
+        self.pause_btn.setText("Pause")
+        self.stop_btn.setEnabled(False)  # Can't stop when not recording
+        self.append_btn.setEnabled(True)  # Can append more clips
+        self.transcribe_btn.setEnabled(True)  # Can transcribe cached audio
+        self.transcribe_btn.setStyleSheet(self._transcribe_btn_idle_style)  # Green when cached
+        self.delete_btn.setEnabled(True)  # Can delete cached audio
+        self.status_label.setText(f"Stopped ({len(self.accumulated_segments)} clip{'s' if len(self.accumulated_segments) > 1 else ''})")
+        self.status_label.setStyleSheet("color: #ffc107; font-weight: bold;")
+
+        # Update tray to stopped state
+        self._set_tray_state('stopped')
+
     def append_to_transcription(self):
-        """Start a new recording that will be appended to the existing transcription."""
+        """Start a new recording that will be appended to cached audio."""
         if self.recorder.is_recording:
             return  # Already recording
 
-        # Enable append mode
+        # Enable append mode (keeps cached audio)
         self.append_mode = True
 
-        # Start recording (will not clear text due to append_mode flag)
+        # Start recording (will not clear cache due to append_mode flag)
         self.toggle_recording()
+
+    def transcribe_cached_audio(self):
+        """Transcribe all accumulated audio segments."""
+        if not self.accumulated_segments:
+            return  # Nothing to transcribe
+
+        # Combine all segments
+        self.status_label.setText("Combining clips...")
+        self.status_label.setStyleSheet("color: #007bff; font-weight: bold;")
+        audio_data = combine_wav_segments(self.accumulated_segments)
+
+        # Get original audio info
+        audio_info = get_audio_info(audio_data)
+        self.last_audio_duration = audio_info["duration_seconds"]
+        self.last_vad_duration = None
+
+        # Store audio data for later archiving
+        self.last_audio_data = audio_data
+
+        # Clear cache
+        self.accumulated_segments = []
+        self.accumulated_duration = 0.0
+        self._update_segment_indicator()
+        self.has_cached_audio = False
+
+        # Disable all controls during transcription
+        self.record_btn.setText("Record")
+        self.record_btn.setEnabled(False)
+        self.pause_btn.setEnabled(False)
+        self.append_btn.setEnabled(False)
+        self.stop_btn.setEnabled(False)
+        self.transcribe_btn.setEnabled(False)
+        self.delete_btn.setEnabled(False)
+        self.status_label.setText("Transcribing...")
+        self.status_label.setStyleSheet("color: #007bff; font-weight: bold;")
+
+        # Update tray to transcribing state
+        self._set_tray_state('transcribing')
+
+        # Get API key for selected provider
+        provider = self.config.selected_provider
+        if provider == "openrouter":
+            api_key = self.config.openrouter_api_key
+            model = self.config.openrouter_model
+        elif provider == "gemini":
+            api_key = self.config.gemini_api_key
+            model = self.config.gemini_model
+        elif provider == "openai":
+            api_key = self.config.openai_api_key
+            model = self.config.openai_model
+        else:
+            api_key = self.config.mistral_api_key
+            model = self.config.mistral_model
+
+        if not api_key:
+            QMessageBox.warning(
+                self,
+                "Missing API Key",
+                f"Please set your {provider.title()} API key in Settings.",
+            )
+            self.reset_ui()
+            return
+
+        # Start transcription worker
+        cleanup_prompt = build_cleanup_prompt(self.config)
+        self.worker = TranscriptionWorker(
+            audio_data,
+            provider,
+            api_key,
+            model,
+            cleanup_prompt,
+            vad_enabled=self.config.vad_enabled,
+        )
+        self.worker.finished.connect(self.on_transcription_complete)
+        self.worker.error.connect(self.on_transcription_error)
+        self.worker.status.connect(self.on_worker_status)
+        self.worker.vad_complete.connect(self.on_vad_complete)
+        self.worker.start()
 
     def _update_segment_indicator(self):
         """Update the segment count display."""
@@ -1685,25 +2170,38 @@ class MainWindow(QMainWindow):
             self.segment_label.setText("")
 
     def stop_and_transcribe(self):
-        """Stop recording and send for transcription."""
-        # Play stop beep
-        feedback = get_feedback()
-        feedback.enabled = self.config.beep_on_record
-        feedback.play_stop_beep()
+        """Stop recording (if recording) and send for transcription immediately.
 
-        self.timer.stop()
-        audio_data = self.recorder.stop_recording()
+        This is used by hotkeys for quick transcription without caching.
+        If you want to cache audio first, use handle_stop_button() instead.
+        """
+        # If currently recording, stop it first
+        if self.recorder.is_recording:
+            # Play stop beep
+            feedback = get_feedback()
+            feedback.enabled = self.config.beep_on_record
+            feedback.play_stop_beep()
 
-        # If we have accumulated segments, add current recording and combine all
-        if self.accumulated_segments:
-            self.accumulated_segments.append(audio_data)
-            self.status_label.setText("Combining clips...")
-            self.status_label.setStyleSheet("color: #007bff; font-weight: bold;")
-            audio_data = combine_wav_segments(self.accumulated_segments)
-            # Clear accumulated segments after combining
-            self.accumulated_segments = []
-            self.accumulated_duration = 0.0
-            self._update_segment_indicator()
+            self.timer.stop()
+            audio_data = self.recorder.stop_recording()
+
+            # If we have accumulated segments, add current recording and combine all
+            if self.accumulated_segments:
+                self.accumulated_segments.append(audio_data)
+                self.status_label.setText("Combining clips...")
+                self.status_label.setStyleSheet("color: #007bff; font-weight: bold;")
+                audio_data = combine_wav_segments(self.accumulated_segments)
+                # Clear accumulated segments after combining
+                self.accumulated_segments = []
+                self.accumulated_duration = 0.0
+                self._update_segment_indicator()
+        elif self.has_cached_audio:
+            # If we have cached audio, just transcribe it
+            self.transcribe_cached_audio()
+            return
+        else:
+            # Nothing to transcribe
+            return
 
         # Get original audio info
         audio_info = get_audio_info(audio_data)
@@ -1713,11 +2211,15 @@ class MainWindow(QMainWindow):
         # Store audio data for later archiving (VAD now happens in worker thread)
         self.last_audio_data = audio_data
 
+        # Clear state flags
+        self.has_cached_audio = False
+
         self.record_btn.setText("Record")
         self.record_btn.setEnabled(False)
         self.pause_btn.setEnabled(False)
         self.append_btn.setEnabled(False)
         self.stop_btn.setEnabled(False)
+        self.transcribe_btn.setEnabled(False)
         self.delete_btn.setEnabled(False)
         self.status_label.setText("Transcribing...")
         self.status_label.setStyleSheet("color: #007bff; font-weight: bold;")
@@ -1777,12 +2279,16 @@ class MainWindow(QMainWindow):
     def on_transcription_complete(self, result: TranscriptionResult):
         """Handle completed transcription."""
         if self.append_mode:
-            # Append to existing text
+            # Append to existing text - always at the end
             existing_text = self.text_output.toPlainText()
             if existing_text:
                 # Add a newline separator if there's existing content
                 combined_text = existing_text + "\n\n" + result.text
                 self.text_output.setMarkdown(combined_text)
+                # Move cursor to end of document after appending
+                cursor = self.text_output.source_view.textCursor()
+                cursor.movePosition(cursor.MoveOperation.End)
+                self.text_output.source_view.setTextCursor(cursor)
             else:
                 self.text_output.setMarkdown(result.text)
             # Reset append mode
@@ -1940,6 +2446,10 @@ class MainWindow(QMainWindow):
     def _update_mic_display(self):
         """Update the microphone display label."""
         display_name, full_name = self._get_active_microphone_name()
+        # Limit to 3 words
+        words = display_name.split()
+        if len(words) > 3:
+            display_name = ' '.join(words[:3])
         self.mic_label.setText(display_name)
         self.mic_label.setToolTip(f"Active microphone: {full_name}\nChange in Settings → Audio")
 
@@ -2029,6 +2539,8 @@ class MainWindow(QMainWindow):
         self.pause_btn.setEnabled(False)
         self.append_btn.setEnabled(False)
         self.stop_btn.setEnabled(False)
+        self.transcribe_btn.setEnabled(False)
+        self.transcribe_btn.setStyleSheet(self._transcribe_btn_idle_style)  # Reset to green
         self.delete_btn.setEnabled(False)
         self.duration_label.setText("0:00")
         self.status_label.setText("Ready")
@@ -2052,8 +2564,9 @@ class MainWindow(QMainWindow):
         self.accumulated_duration = 0.0
         self._update_segment_indicator()
 
-        # Reset append mode
+        # Reset state flags
         self.append_mode = False
+        self.has_cached_audio = False
 
         self.reset_ui()
         self._set_tray_state('idle')
@@ -2147,14 +2660,74 @@ class MainWindow(QMainWindow):
         # Update icon
         if state == 'idle':
             self.tray.setIcon(self._tray_icon_idle)
+            self.status_indicator.setText("● READY")
+            self.status_indicator.setStyleSheet("""
+                QLabel {
+                    background-color: #f8f9fa;
+                    color: #6c757d;
+                    padding: 8px 16px;
+                    border-radius: 4px;
+                    font-weight: bold;
+                    font-size: 13px;
+                    border: 2px solid #dee2e6;
+                }
+            """)
         elif state == 'recording':
             self.tray.setIcon(self._tray_icon_recording)
+            self.status_indicator.setText("● RECORDING")
+            self.status_indicator.setStyleSheet("""
+                QLabel {
+                    background-color: #f8d7da;
+                    color: #dc3545;
+                    padding: 8px 16px;
+                    border-radius: 4px;
+                    font-weight: bold;
+                    font-size: 13px;
+                    border: 2px solid #dc3545;
+                }
+            """)
         elif state == 'stopped':
             self.tray.setIcon(self._tray_icon_stopped)
+            self.status_indicator.setText("⏸ PAUSED")
+            self.status_indicator.setStyleSheet("""
+                QLabel {
+                    background-color: #fff3cd;
+                    color: #ffc107;
+                    padding: 8px 16px;
+                    border-radius: 4px;
+                    font-weight: bold;
+                    font-size: 13px;
+                    border: 2px solid #ffc107;
+                }
+            """)
         elif state == 'transcribing':
             self.tray.setIcon(self._tray_icon_transcribing)
+            self.status_indicator.setText("⟳ TRANSCRIBING")
+            self.status_indicator.setStyleSheet("""
+                QLabel {
+                    background-color: #cfe2ff;
+                    color: #007bff;
+                    padding: 8px 16px;
+                    border-radius: 4px;
+                    font-weight: bold;
+                    font-size: 13px;
+                    border: 2px solid #007bff;
+                }
+            """)
         elif state == 'complete':
             self.tray.setIcon(self._tray_icon_complete)
+            self.status_indicator.setText("✓ COMPLETE")
+            self.status_indicator.setStyleSheet("""
+                QLabel {
+                    background-color: #d1e7dd;
+                    color: #28a745;
+                    padding: 8px 16px;
+                    border-radius: 4px;
+                    font-weight: bold;
+                    font-size: 13px;
+                    border: 2px solid #28a745;
+                }
+            """)
         # Update menu
         self._update_tray_menu()
 
@@ -2184,31 +2757,13 @@ class MainWindow(QMainWindow):
         if not self.recorder.is_recording:
             return
 
-        # Stop recording but hold the audio
-        self.timer.stop()
-
-        # Play stop beep
-        feedback = get_feedback()
-        feedback.enabled = self.config.beep_on_record
-        feedback.play_stop_beep()
-
-        # Pause the recorder (keeps audio data) instead of stopping
-        self.recorder.pause_recording()
-
-        # Update UI
-        self.pause_btn.setText("Resume")
-        self.record_btn.setText("● Stopped")
-        self.record_btn.setStyleSheet(self._record_btn_recording_style.replace("#dc3545", "#ffc107"))
-        self.status_label.setText("Stopped - choose action")
-        self.status_label.setStyleSheet("color: #ffc107; font-weight: bold;")
-
-        # Set tray to stopped state
-        self._set_tray_state('stopped')
+        # Use the new handle_stop_button method to stop and cache audio
+        self.handle_stop_button()
 
         # Show notification
         self.tray.showMessage(
             "Recording Stopped",
-            "Click Transcribe or Delete from tray menu, or use main window.",
+            "Click Transcribe, Append, or Delete from tray menu, or use main window.",
             QSystemTrayIcon.MessageIcon.Information,
             3000,
         )
@@ -2218,11 +2773,12 @@ class MainWindow(QMainWindow):
         if self._tray_state != 'stopped':
             return
 
-        # Resume recording briefly then stop and transcribe
-        # This triggers the normal transcription flow
-        if self.recorder.is_paused:
-            self.recorder.resume_recording()
-        self.stop_and_transcribe()
+        # Transcribe cached audio
+        if self.has_cached_audio:
+            self.transcribe_cached_audio()
+        elif self.recorder.is_recording:
+            # Fallback in case state is inconsistent
+            self.stop_and_transcribe()
 
     def _tray_delete_stopped(self):
         """Delete the stopped recording from tray menu."""
@@ -2231,23 +2787,12 @@ class MainWindow(QMainWindow):
         self.delete_recording()
 
     def _tray_resume_recording(self):
-        """Resume recording from stopped state via tray menu."""
+        """Append more audio from stopped state via tray menu."""
         if self._tray_state != 'stopped':
             return
 
-        if self.recorder.is_paused:
-            self.recorder.resume_recording()
-
-        # Restore recording UI
-        self.pause_btn.setText("Pause")
-        self.record_btn.setText("● Recording")
-        self.record_btn.setStyleSheet(self._record_btn_recording_style)
-        self.status_label.setText("Recording...")
-        self.status_label.setStyleSheet("color: #dc3545; font-weight: bold;")
-        self.timer.start(100)
-
-        # Set tray to recording state
-        self._set_tray_state('recording')
+        # Use append functionality to record more clips
+        self.append_to_transcription()
 
     def quit_app(self):
         """Quit the application."""

@@ -7,9 +7,11 @@ from PyQt6.QtWidgets import (
     QGroupBox,
     QScrollArea,
     QFrame,
+    QHBoxLayout,
 )
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QFont
+from PyQt6.QtGui import QFont, QPixmap
+from pathlib import Path
 
 # Application version
 VERSION = "1.3.1"
@@ -38,12 +40,12 @@ class AboutWidget(QWidget):
 
         # App title and version
         title = QLabel("Voice Notepad")
-        title.setFont(QFont("Sans", 18, QFont.Weight.Bold))
+        title.setFont(QFont("Sans", 24, QFont.Weight.Bold))
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(title)
 
         version_label = QLabel(f"Version {VERSION}")
-        version_label.setStyleSheet("color: #666; font-size: 13px;")
+        version_label.setStyleSheet("color: #666; font-size: 16px;")
         version_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(version_label)
 
@@ -68,6 +70,90 @@ class AboutWidget(QWidget):
         line.setFrameShape(QFrame.Shape.HLine)
         line.setStyleSheet("background-color: #ddd;")
         layout.addWidget(line)
+
+        # Collaborative credits section
+        by_label = QLabel("By")
+        by_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        by_label.setStyleSheet("color: #888; font-size: 14px; margin-top: 8px;")
+        layout.addWidget(by_label)
+
+        # Split layout for human and AI
+        collab_layout = QHBoxLayout()
+        collab_layout.setSpacing(40)
+        collab_layout.setContentsMargins(20, 10, 20, 10)
+
+        # Human side
+        human_container = QVBoxLayout()
+        human_container.setSpacing(8)
+        human_container.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        human_icon_path = Path(__file__).parent / "icons" / "human.png"
+        if human_icon_path.exists():
+            human_icon = QLabel()
+            human_pixmap = QPixmap(str(human_icon_path)).scaled(
+                64, 64, Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.SmoothTransformation
+            )
+            human_icon.setPixmap(human_pixmap)
+            human_icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            human_container.addWidget(human_icon)
+        else:
+            # Fallback emoji
+            human_emoji = QLabel("👤")
+            human_emoji.setStyleSheet("font-size: 48px;")
+            human_emoji.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            human_container.addWidget(human_emoji)
+
+        human_name = QLabel('<a href="https://danielrosehill.com" style="text-decoration: none; color: #333;">Daniel Rosehill</a>')
+        human_name.setOpenExternalLinks(True)
+        human_name.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        human_name.setStyleSheet("font-size: 14px; font-weight: bold;")
+        human_container.addWidget(human_name)
+
+        human_widget = QWidget()
+        human_widget.setLayout(human_container)
+        collab_layout.addWidget(human_widget)
+
+        # Bot side
+        bot_container = QVBoxLayout()
+        bot_container.setSpacing(8)
+        bot_container.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        bot_icon_path = Path(__file__).parent / "icons" / "claude.png"
+        if bot_icon_path.exists():
+            bot_icon = QLabel()
+            bot_pixmap = QPixmap(str(bot_icon_path)).scaled(
+                64, 64, Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.SmoothTransformation
+            )
+            bot_icon.setPixmap(bot_pixmap)
+            bot_icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            bot_container.addWidget(bot_icon)
+        else:
+            # Fallback emoji
+            bot_emoji = QLabel("🤖")
+            bot_emoji.setStyleSheet("font-size: 48px;")
+            bot_emoji.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            bot_container.addWidget(bot_emoji)
+
+        bot_name = QLabel("Claude Opus 4.5")
+        bot_name.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        bot_name.setStyleSheet("font-size: 14px; font-weight: bold; color: #333;")
+        bot_container.addWidget(bot_name)
+
+        bot_widget = QWidget()
+        bot_widget.setLayout(bot_container)
+        collab_layout.addWidget(bot_widget)
+
+        collab_widget = QWidget()
+        collab_widget.setLayout(collab_layout)
+        layout.addWidget(collab_widget)
+
+        # Separator
+        line2 = QFrame()
+        line2.setFrameShape(QFrame.Shape.HLine)
+        line2.setStyleSheet("background-color: #ddd; margin-top: 12px;")
+        layout.addWidget(line2)
 
         # Scope section
         scope_group = QGroupBox("Scope")
@@ -111,6 +197,35 @@ class AboutWidget(QWidget):
         scope_layout.addWidget(scope_note)
 
         layout.addWidget(scope_group)
+
+        # Control Buttons
+        controls_group = QGroupBox("Control Buttons")
+        controls_layout = QVBoxLayout(controls_group)
+        controls_layout.setSpacing(6)
+
+        controls_intro = QLabel(
+            "The main recording interface provides the following controls:"
+        )
+        controls_intro.setWordWrap(True)
+        controls_intro.setStyleSheet("color: #444; font-size: 11px; margin-bottom: 8px;")
+        controls_layout.addWidget(controls_intro)
+
+        control_buttons = [
+            ("Record", "Start a new recording (clears any cached audio)"),
+            ("Pause", "Pause/resume the current recording (available only while recording)"),
+            ("Stop", "Stop recording and cache audio without transcribing. You can append more clips or transcribe later."),
+            ("Append", "Record additional audio and combine with cached audio. Useful for recording in segments."),
+            ("Transcribe", "Smart button that adapts to the current state:\n  • While recording: Stops and transcribes immediately\n  • After stopping: Transcribes all cached audio clips"),
+            ("Delete", "Discard all cached audio without transcribing"),
+        ]
+
+        for button, desc in control_buttons:
+            button_label = QLabel(f"<b>{button}:</b> {desc}")
+            button_label.setWordWrap(True)
+            button_label.setStyleSheet("margin-left: 10px; margin-bottom: 4px;")
+            controls_layout.addWidget(button_label)
+
+        layout.addWidget(controls_group)
 
         # Keyboard shortcuts
         shortcuts_group = QGroupBox("Keyboard Shortcuts")
@@ -218,22 +333,30 @@ class AboutWidget(QWidget):
 
         layout.addWidget(vad_group)
 
-        # Credits
-        credits_group = QGroupBox("Credits")
-        credits_layout = QVBoxLayout(credits_group)
+        # MIT License
+        license_group = QGroupBox("License")
+        license_layout = QVBoxLayout(license_group)
+        license_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-        human_label = QLabel(
-            'Human: <a href="https://danielrosehill.com">Daniel Rosehill</a>'
+        # MIT logo
+        mit_icon_path = Path(__file__).parent / "icons" / "mit_small.png"
+        if mit_icon_path.exists():
+            mit_icon = QLabel()
+            mit_pixmap = QPixmap(str(mit_icon_path))
+            mit_icon.setPixmap(mit_pixmap)
+            mit_icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            license_layout.addWidget(mit_icon)
+
+        license_text = QLabel(
+            "This software is licensed under the MIT License. "
+            "See the GitHub repository for full license text."
         )
-        human_label.setOpenExternalLinks(True)
-        human_label.setWordWrap(True)
-        credits_layout.addWidget(human_label)
+        license_text.setWordWrap(True)
+        license_text.setStyleSheet("color: #666; font-size: 11px;")
+        license_text.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        license_layout.addWidget(license_text)
 
-        coding_label = QLabel("Coding: Claude Code (Anthropic)")
-        coding_label.setWordWrap(True)
-        credits_layout.addWidget(coding_label)
-
-        layout.addWidget(credits_group)
+        layout.addWidget(license_group)
 
         # Spacer
         layout.addStretch()

@@ -184,6 +184,28 @@ class HistoryWidget(QWidget):
         clear_btn.clicked.connect(self._on_clear_search)
         header.addWidget(clear_btn)
 
+        header.addSpacing(20)
+
+        delete_all_btn = QPushButton("Delete All History")
+        delete_all_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #dc3545;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                padding: 6px 12px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #c82333;
+            }
+            QPushButton:pressed {
+                background-color: #bd2130;
+            }
+        """)
+        delete_all_btn.clicked.connect(self._on_delete_all)
+        header.addWidget(delete_all_btn)
+
         layout.addLayout(header)
 
         # Main content: splitter with list and preview
@@ -483,3 +505,53 @@ class HistoryWidget(QWidget):
                 self.refresh()
             else:
                 self.status_label.setText("Failed to delete transcript")
+
+    def _on_delete_all(self):
+        """Delete all transcripts after confirmation."""
+        db = get_db()
+        total_count = db.get_total_count()
+
+        if total_count == 0:
+            QMessageBox.information(
+                self,
+                "No History",
+                "There are no transcriptions to delete.",
+            )
+            return
+
+        reply = QMessageBox.warning(
+            self,
+            "Delete All History",
+            f"Are you sure you want to delete ALL {total_count} transcriptions?\n\n"
+            "This will permanently delete:\n"
+            "• All transcript text\n"
+            "• All archived audio files\n"
+            "• All metadata and statistics\n\n"
+            "THIS CANNOT BE UNDONE!",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+
+        if reply == QMessageBox.StandardButton.Yes:
+            deleted_count = db.delete_all()
+            # Run VACUUM to reclaim space
+            db.vacuum()
+
+            # Clear preview
+            self.selected_record = None
+            self.preview_text.clear()
+            self.preview_info.setText("")
+            self.copy_full_btn.setEnabled(False)
+            self.load_btn.setEnabled(False)
+            self.delete_btn.setEnabled(False)
+
+            # Refresh the list
+            self.refresh()
+
+            self.status_label.setText(f"Deleted {deleted_count} transcriptions and optimized database")
+            QMessageBox.information(
+                self,
+                "History Cleared",
+                f"Successfully deleted {deleted_count} transcriptions.\n\n"
+                "Database has been optimized to reclaim disk space.",
+            )

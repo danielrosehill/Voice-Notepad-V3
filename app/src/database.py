@@ -119,6 +119,10 @@ class TranscriptionDB:
             conn.execute("CREATE INDEX IF NOT EXISTS idx_source ON transcriptions(source)")
             conn.commit()
 
+            # Enable FTS for fast searching (auto-migrates existing databases)
+            if not self.is_fts_enabled():
+                self.enable_fts()
+
     def _migrate_schema(self, conn):
         """Add any missing columns to existing tables."""
         cursor = conn.execute("PRAGMA table_info(transcriptions)")
@@ -199,23 +203,43 @@ class TranscriptionDB:
         search: Optional[str] = None,
         provider: Optional[str] = None,
     ) -> list[TranscriptionRecord]:
-        """Get transcriptions with pagination and optional filtering."""
+        """Get transcriptions with pagination and optional filtering.
+
+        If FTS is enabled and a search query is provided, uses full-text search
+        for better performance. Otherwise falls back to LIKE queries.
+        """
         with self._lock:
             conn = self._get_conn()
 
-            query = "SELECT * FROM transcriptions WHERE 1=1"
-            params = []
+            # Use FTS if enabled and searching
+            if search and self.is_fts_enabled():
+                query = """
+                    SELECT t.* FROM transcriptions t
+                    JOIN transcriptions_fts fts ON t.id = fts.rowid
+                    WHERE fts.transcript_text MATCH ?
+                """
+                params = [search]
 
-            if search:
-                query += " AND transcript_text LIKE ?"
-                params.append(f"%{search}%")
+                if provider:
+                    query += " AND t.provider = ?"
+                    params.append(provider)
 
-            if provider:
-                query += " AND provider = ?"
-                params.append(provider)
+                query += " ORDER BY t.timestamp DESC LIMIT ? OFFSET ?"
+                params.extend([limit, offset])
+            else:
+                query = "SELECT * FROM transcriptions WHERE 1=1"
+                params = []
 
-            query += " ORDER BY timestamp DESC LIMIT ? OFFSET ?"
-            params.extend([limit, offset])
+                if search:
+                    query += " AND transcript_text LIKE ?"
+                    params.append(f"%{search}%")
+
+                if provider:
+                    query += " AND provider = ?"
+                    params.append(provider)
+
+                query += " ORDER BY timestamp DESC LIMIT ? OFFSET ?"
+                params.extend([limit, offset])
 
             cursor = conn.execute(query, params)
             return [TranscriptionRecord.from_row(row) for row in cursor.fetchall()]
@@ -271,6 +295,88 @@ class TranscriptionDB:
             cursor = conn.execute("DELETE FROM transcriptions")
             conn.commit()
             return cursor.rowcount
+
+    def vacuum(self) -> bool:
+        """Optimize database by reclaiming unused space.
+
+        SQLite VACUUM rebuilds the database file, repacking it into a minimal
+        amount of disk space. This is useful after deleting many records.
+
+        Returns True if successful.
+        """
+        with self._lock:
+            try:
+                conn = self._get_conn()
+                conn.execute("VACUUM")
+                conn.commit()
+                return True
+            except Exception as e:
+                print(f"VACUUM failed: {e}")
+                return False
+
+    def enable_fts(self) -> bool:
+        """Enable Full-Text Search on transcript_text column.
+
+        Creates a virtual FTS5 table for fast text searching.
+        This significantly speeds up search queries on large databases.
+
+        Returns True if successful or already enabled.
+        """
+        with self._lock:
+            try:
+                conn = self._get_conn()
+
+                # Check if FTS table already exists
+                cursor = conn.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table' AND name='transcriptions_fts'"
+                )
+                if cursor.fetchone():
+                    return True  # Already enabled
+
+                # Create FTS5 virtual table
+                conn.executescript("""
+                    CREATE VIRTUAL TABLE transcriptions_fts USING fts5(
+                        transcript_text,
+                        content='transcriptions',
+                        content_rowid='id'
+                    );
+
+                    -- Populate FTS table with existing data
+                    INSERT INTO transcriptions_fts(rowid, transcript_text)
+                    SELECT id, transcript_text FROM transcriptions;
+
+                    -- Triggers to keep FTS table in sync
+                    CREATE TRIGGER transcriptions_ai AFTER INSERT ON transcriptions BEGIN
+                        INSERT INTO transcriptions_fts(rowid, transcript_text)
+                        VALUES (new.id, new.transcript_text);
+                    END;
+
+                    CREATE TRIGGER transcriptions_ad AFTER DELETE ON transcriptions BEGIN
+                        INSERT INTO transcriptions_fts(transcriptions_fts, rowid, transcript_text)
+                        VALUES('delete', old.id, old.transcript_text);
+                    END;
+
+                    CREATE TRIGGER transcriptions_au AFTER UPDATE ON transcriptions BEGIN
+                        INSERT INTO transcriptions_fts(transcriptions_fts, rowid, transcript_text)
+                        VALUES('delete', old.id, old.transcript_text);
+                        INSERT INTO transcriptions_fts(rowid, transcript_text)
+                        VALUES (new.id, new.transcript_text);
+                    END;
+                """)
+                conn.commit()
+                return True
+            except Exception as e:
+                print(f"FTS setup failed: {e}")
+                return False
+
+    def is_fts_enabled(self) -> bool:
+        """Check if Full-Text Search is enabled."""
+        with self._lock:
+            conn = self._get_conn()
+            cursor = conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name='transcriptions_fts'"
+            )
+            return cursor.fetchone() is not None
 
     def get_storage_stats(self) -> dict:
         """Get storage statistics."""

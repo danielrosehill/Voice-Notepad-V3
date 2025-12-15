@@ -122,13 +122,20 @@ MISTRAL_API_KEY=your_key
 
 ### The Cleanup Prompt
 
-The default cleanup prompt instructs the AI to:
+The cleanup prompt is fully customizable via checkboxes in Settings → Prompt. Default options include:
 1. Remove filler words (um, uh, like, etc.)
-2. Add proper punctuation and sentences
-3. Add natural paragraph spacing
-4. Follow verbal instructions in the recording (e.g., "don't include this", "change this")
-5. Add subheadings for lengthy transcriptions
-6. Return output as markdown
+2. Remove verbal tics and hedging phrases (you know, I mean, etc.)
+3. Remove standalone acknowledgments (Okay, Right, etc.)
+4. Add proper punctuation and sentences
+5. Add natural paragraph spacing
+6. Follow verbal instructions in the recording (e.g., "don't include this", "change this")
+7. Add subheadings for lengthy transcriptions (optional, disabled by default)
+8. Use markdown formatting like bold and lists (optional, disabled by default)
+9. Remove unintentional dialogue (optional, disabled by default)
+   - Only removes dialogue if the AI can confidently detect it was accidental
+   - E.g., someone else speaking to the user during recording
+
+The prompt is built dynamically from selected options, along with format preset (email, todo, meeting notes, etc.), formality level (casual, neutral, professional), and verbosity reduction settings.
 
 ### Audio Processing Pipeline
 

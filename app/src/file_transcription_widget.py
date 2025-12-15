@@ -17,10 +17,10 @@ from PyQt6.QtWidgets import (
     QProgressBar,
     QComboBox,
 )
-from PyQt6.QtCore import Qt, QThread, pyqtSignal
-from PyQt6.QtGui import QFont, QDragEnterEvent, QDropEvent
+from PyQt6.QtCore import Qt, QThread, pyqtSignal, QSize
+from PyQt6.QtGui import QFont, QDragEnterEvent, QDropEvent, QIcon
 
-from .config import GEMINI_MODELS, OPENROUTER_MODELS
+from .config import GEMINI_MODELS, OPENROUTER_MODELS, OPENAI_MODELS, MISTRAL_MODELS
 
 from pydub import AudioSegment
 
@@ -143,28 +143,77 @@ class FileTranscriptionWidget(QWidget):
         # Enable drag and drop
         self.setAcceptDrops(True)
 
+    def _get_provider_icon(self, provider: str) -> QIcon:
+        """Get the icon for a given provider."""
+        icons_dir = Path(__file__).parent / "icons"
+        icon_map = {
+            "openrouter": "or_icon.png",
+            "open router": "or_icon.png",
+            "gemini": "gemini_icon.png",
+            "google": "gemini_icon.png",
+            "openai": "openai_icon.png",
+            "mistral": "mistral_icon.png",
+        }
+        icon_filename = icon_map.get(provider.lower(), "")
+        if icon_filename:
+            icon_path = icons_dir / icon_filename
+            if icon_path.exists():
+                return QIcon(str(icon_path))
+        return QIcon()  # Return empty icon if not found
+
+    def _get_model_icon(self, model_id: str) -> QIcon:
+        """Get the icon for a model based on its originator (not inference provider)."""
+        icons_dir = Path(__file__).parent / "icons"
+        model_lower = model_id.lower()
+
+        # Determine model originator from model ID
+        if model_lower.startswith("google/") or model_lower.startswith("gemini"):
+            icon_filename = "gemini_icon.png"
+        elif model_lower.startswith("openai/") or model_lower.startswith("gpt"):
+            icon_filename = "openai_icon.png"
+        elif model_lower.startswith("mistralai/") or model_lower.startswith("voxtral"):
+            icon_filename = "mistral_icon.png"
+        else:
+            return QIcon()  # No icon for unknown models
+
+        icon_path = icons_dir / icon_filename
+        if icon_path.exists():
+            return QIcon(str(icon_path))
+        return QIcon()
+
     def setup_ui(self):
         layout = QVBoxLayout(self)
         layout.setSpacing(12)
         layout.setContentsMargins(12, 12, 12, 12)
 
         # Title
-        title = QLabel("File Transcription")
+        title = QLabel("File Transcription (Upload Audio)")
         title.setFont(QFont("Sans", 14, QFont.Weight.Bold))
         layout.addWidget(title)
 
         # Description
-        desc = QLabel("Transcribe audio files using AI models with confirmed file support.")
+        desc = QLabel("Upload and transcribe pre-recorded audio files using multimodal AI.")
         desc.setStyleSheet("color: #666; font-size: 12px;")
         layout.addWidget(desc)
 
-        # Provider and model selection (limited to supported providers)
+        # Provider and model selection
         provider_layout = QHBoxLayout()
 
         provider_layout.addWidget(QLabel("Provider:"))
         self.provider_combo = QComboBox()
-        # Only providers confirmed to support file upload
-        self.provider_combo.addItems(["Gemini"])
+        self.provider_combo.setIconSize(QSize(16, 16))
+        # Add providers with icons (same as Record tab)
+        providers = [
+            ("Open Router", "openrouter"),
+            ("Google", "google"),
+            ("OpenAI", "openai"),
+            ("Mistral", "mistral")
+        ]
+        for display_name, provider_key in providers:
+            icon = self._get_provider_icon(provider_key)
+            self.provider_combo.addItem(icon, display_name)
+        # Default to Open Router
+        self.provider_combo.setCurrentText("Open Router")
         self.provider_combo.currentTextChanged.connect(self._on_provider_changed)
         provider_layout.addWidget(self.provider_combo)
 
@@ -172,6 +221,7 @@ class FileTranscriptionWidget(QWidget):
 
         provider_layout.addWidget(QLabel("Model:"))
         self.model_combo = QComboBox()
+        self.model_combo.setIconSize(QSize(16, 16))
         self._update_model_combo()
         provider_layout.addWidget(self.model_combo, 1)
 
@@ -330,14 +380,30 @@ class FileTranscriptionWidget(QWidget):
         self.model_combo.blockSignals(True)
         self.model_combo.clear()
 
-        provider = self.provider_combo.currentText().lower()
-        if provider == "gemini":
-            models = GEMINI_MODELS
-        else:
-            models = GEMINI_MODELS  # Default fallback
+        # Map display name to internal name
+        provider_display = self.provider_combo.currentText()
+        provider_map = {
+            "Open Router": "openrouter",
+            "Google": "gemini",
+            "OpenAI": "openai",
+            "Mistral": "mistral"
+        }
+        provider = provider_map.get(provider_display, "openrouter")
 
+        # Get model list for provider
+        if provider == "openrouter":
+            models = OPENROUTER_MODELS
+        elif provider == "gemini":
+            models = GEMINI_MODELS
+        elif provider == "openai":
+            models = OPENAI_MODELS
+        else:  # mistral
+            models = MISTRAL_MODELS
+
+        # Add models with model originator icon
         for model_id, display_name in models:
-            self.model_combo.addItem(display_name, model_id)
+            model_icon = self._get_model_icon(model_id)
+            self.model_combo.addItem(model_icon, display_name, model_id)
 
         self.model_combo.blockSignals(False)
 
@@ -345,13 +411,16 @@ class FileTranscriptionWidget(QWidget):
         """Get the internal provider name."""
         provider_display = self.provider_combo.currentText()
         display_to_internal = {
-            "Gemini": "gemini",
+            "Open Router": "openrouter",
+            "Google": "gemini",
+            "OpenAI": "openai",
+            "Mistral": "mistral",
         }
-        return display_to_internal.get(provider_display, "gemini")
+        return display_to_internal.get(provider_display, "openrouter")
 
     def _get_selected_model(self) -> str:
         """Get the selected model ID."""
-        return self.model_combo.currentData() or "gemini-2.5-flash"
+        return self.model_combo.currentData() or "google/gemini-2.5-flash"
 
     def browse_file(self):
         """Open file browser to select audio file."""
@@ -430,18 +499,30 @@ class FileTranscriptionWidget(QWidget):
 
         config = main_window.config
 
-        # Use File tab's own provider/model selection (limited to supported providers)
+        # Use File tab's own provider/model selection
         provider = self._get_selected_provider()
         model = self._get_selected_model()
 
         # Get API key for selected provider
-        if provider == "gemini":
+        if provider == "openrouter":
+            api_key = config.openrouter_api_key
+        elif provider == "gemini":
             api_key = config.gemini_api_key
+        elif provider == "openai":
+            api_key = config.openai_api_key
+        elif provider == "mistral":
+            api_key = config.mistral_api_key
         else:
-            api_key = config.gemini_api_key  # Fallback to Gemini
+            api_key = None
 
         if not api_key:
-            self.status_label.setText(f"Missing API key for {provider.title()}. Set in Settings → API Keys")
+            provider_name = {
+                "openrouter": "OpenRouter",
+                "gemini": "Google Gemini",
+                "openai": "OpenAI",
+                "mistral": "Mistral"
+            }.get(provider, provider.title())
+            self.status_label.setText(f"Missing API key for {provider_name}. Set in Settings → API Keys")
             self.status_label.setStyleSheet("color: #dc3545;")
             return
 
