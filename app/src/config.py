@@ -153,6 +153,10 @@ class Config:
     user_phone: str = ""
     email_signature: str = "Best regards"
 
+    # NEW: Prompt library system
+    output_format: str = "markdown"  # text, markdown, html, json, xml, yaml
+    active_prompt_ids: list = field(default_factory=list)  # List of enabled prompt IDs
+
 
 def load_config() -> Config:
     """Load configuration from disk, or create default."""
@@ -510,13 +514,23 @@ EMAIL_SIGNOFFS = [
 ]
 
 
-def build_cleanup_prompt(config: Config) -> str:
+def build_cleanup_prompt(config: Config, use_prompt_library: bool = False) -> str:
     """Build the cleanup prompt using the 3-layer architecture.
+
+    Args:
+        config: Configuration object
+        use_prompt_library: If True, use the new prompt library system from database.
+                           If False, use legacy hardcoded prompts (default for backward compat).
 
     Layer 1 (Foundation): Always applied - basic rewriting (filler removal, punctuation, paragraphs)
     Layer 2 (Optional): User-selected enhancements (subheadings, markdown, etc.)
     Layer 3 (Format + Style): Format-specific instructions, formality, verbosity, writing sample
     """
+    # NEW: Use prompt library if enabled
+    if use_prompt_library:
+        return _build_prompt_from_library(config)
+
+    # LEGACY: Original hardcoded system (kept for backward compatibility)
     lines = ["Your task is to provide a cleaned transcription of the audio recorded by the user."]
 
     # ===== LAYER 1: FOUNDATION (ALWAYS APPLIED) =====
@@ -598,5 +612,128 @@ def build_cleanup_prompt(config: Config) -> str:
     # Final instruction
     lines.append("\n## Output")
     lines.append("- Output ONLY the cleaned transcription in markdown format, no commentary or preamble")
+
+    return "\n".join(lines)
+
+
+def _build_prompt_from_library(config: Config) -> str:
+    """Build prompt using the new prompt library system.
+
+    This function:
+    1. Loads enabled prompts from the database
+    2. Adds output format instruction
+    3. Applies format preset, formality, verbosity (legacy settings)
+    4. Concatenates everything into a complete prompt
+    """
+    from database_mongo import get_db
+    from prompt_library import (
+        PromptTemplate,
+        PromptCategory,
+        OutputFormat,
+        build_prompt_from_templates,
+        detect_conflicts,
+        validate_requirements,
+    )
+
+    db = get_db()
+
+    # Get all enabled prompts from database
+    enabled_prompt_docs = db.get_enabled_prompts()
+
+    # Convert to PromptTemplate objects
+    prompts = [PromptTemplate.from_dict(doc) for doc in enabled_prompt_docs]
+
+    # Foundation prompts are ALWAYS enabled
+    foundation_prompts = [p for p in prompts if p.category == PromptCategory.FOUNDATION]
+
+    # User-selected prompts (from config.active_prompt_ids if set, otherwise all enabled)
+    if config.active_prompt_ids:
+        active_ids = set(config.active_prompt_ids)
+        user_prompts = [p for p in prompts if p.id in active_ids and p.category != PromptCategory.FOUNDATION]
+    else:
+        # Use all enabled non-foundation prompts
+        user_prompts = [p for p in prompts if p.category != PromptCategory.FOUNDATION]
+
+    all_prompts = foundation_prompts + user_prompts
+
+    # Detect conflicts (warn user in future UI)
+    conflicts = detect_conflicts(all_prompts)
+    if conflicts:
+        print(f"Warning: Detected {len(conflicts)} prompt conflicts")
+
+    # Validate requirements
+    missing = validate_requirements(all_prompts)
+    if missing:
+        print(f"Warning: {len(missing)} prompts have missing requirements")
+
+    # Get output format
+    try:
+        output_format = OutputFormat(config.output_format)
+    except ValueError:
+        output_format = OutputFormat.MARKDOWN  # Default
+
+    # Build base prompt from templates
+    lines = ["Your task is to provide a cleaned transcription of the audio recorded by the user."]
+    lines.append("")
+    lines.append(build_prompt_from_templates(all_prompts, output_format))
+
+    # ===== ADD LEGACY FORMAT PRESET SUPPORT =====
+    # (Keep format presets working during transition)
+    format_data = FORMAT_TEMPLATES.get(config.format_preset, {})
+    if isinstance(format_data, dict):
+        format_instruction = format_data.get("instruction", "")
+        format_adherence = format_data.get("adherence", "")
+
+        if format_instruction or format_adherence:
+            lines.append("\n## Format Preset")
+            if format_instruction:
+                lines.append(f"- {format_instruction}")
+            if format_adherence:
+                lines.append(f"- {format_adherence}")
+
+    # Formality/tone and verbosity (legacy settings still work)
+    style_instructions = []
+    formality_template = FORMALITY_TEMPLATES.get(config.formality_level, "")
+    if formality_template:
+        style_instructions.append(formality_template)
+
+    verbosity_template = VERBOSITY_TEMPLATES.get(config.verbosity_reduction, "")
+    if verbosity_template:
+        style_instructions.append(verbosity_template)
+
+    if style_instructions:
+        lines.append("\n## Style & Tone")
+        for instruction in style_instructions:
+            lines.append(f"- {instruction}")
+
+    # Writing sample reference
+    if config.writing_sample and config.writing_sample.strip():
+        lines.append("\n## Writing Style Reference")
+        lines.append("The user has provided the following writing sample as a reference for tone, style, and structure. "
+                    "Use this as guidance for the output style:")
+        lines.append(f"\n{config.writing_sample.strip()}\n")
+
+    # User-specific parameters (e.g., email signature)
+    if config.format_preset == "email":
+        if config.user_name or config.user_email or config.user_phone:
+            lines.append("\n## User Profile")
+            profile_parts = []
+            if config.user_name:
+                profile_parts.append(f"Name: {config.user_name}")
+            if config.user_email:
+                profile_parts.append(f"Email: {config.user_email}")
+            if config.user_phone:
+                profile_parts.append(f"Phone: {config.user_phone}")
+
+            profile_info = ", ".join(profile_parts)
+            lines.append(f"- Draft the email from the following person: {profile_info}")
+
+        if config.user_name:
+            sign_off = config.email_signature or "Best regards"
+            lines.append(f"- End the email with the sign-off: \"{sign_off},\" followed by the sender's name: \"{config.user_name}\"")
+
+    # Final instruction
+    lines.append("\n## Output")
+    lines.append("- Output ONLY the cleaned transcription, no commentary or preamble")
 
     return "\n".join(lines)

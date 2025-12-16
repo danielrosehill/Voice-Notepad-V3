@@ -576,7 +576,7 @@ class SettingsDialog(QDialog):
         vacuum_layout = QHBoxLayout(vacuum_container)
         vacuum_layout.setContentsMargins(0, 0, 0, 0)
 
-        vacuum_btn = QPushButton("Optimize Database (VACUUM)")
+        vacuum_btn = QPushButton("Optimize Database")
         vacuum_btn.setStyleSheet("""
             QPushButton {
                 background-color: #007bff;
@@ -593,7 +593,7 @@ class SettingsDialog(QDialog):
         vacuum_btn.clicked.connect(self._on_vacuum_database)
         vacuum_layout.addWidget(vacuum_btn)
 
-        vacuum_info = QLabel("Reclaims disk space after deleting transcriptions")
+        vacuum_info = QLabel("Rebuild indexes and clean up orphaned files")
         vacuum_info.setStyleSheet("color: #666; font-size: 11px;")
         vacuum_layout.addWidget(vacuum_info)
         vacuum_layout.addStretch()

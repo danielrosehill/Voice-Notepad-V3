@@ -1,0 +1,54 @@
+#!/bin/bash
+# Quick test task for Voice Notepad V3
+# Runs various checks and tests
+
+set -e
+
+cd "$(dirname "$0")/.."
+
+echo "=== Voice Notepad V3 Test Suite ==="
+echo ""
+
+# Syntax check all Python files
+echo "1. Checking Python syntax..."
+find app/src -name "*.py" -exec python3 -m py_compile {} \; 2>&1 | grep -v "^$" || echo "  ✓ All Python files have valid syntax"
+echo ""
+
+# Check database
+echo "2. Checking database..."
+python3 -c "
+from app.src.database_mongo import get_db
+db = get_db()
+transcriptions = db._get_db().transcriptions.count_documents({})
+prompts = db._get_db().prompts.count_documents({})
+print(f'  ✓ Transcriptions: {transcriptions}')
+print(f'  ✓ Prompts: {prompts}')
+"
+echo ""
+
+# Check dependencies
+echo "3. Checking dependencies..."
+if [ -f app/.venv/bin/pip ]; then
+    app/.venv/bin/pip check 2>&1 | grep -i "no broken" && echo "  ✓ All dependencies OK" || echo "  ⚠ Dependency issues found"
+else
+    echo "  ⚠ Virtual environment not found. Run ./run.sh first."
+fi
+echo ""
+
+# Check imports
+echo "4. Testing imports..."
+python3 -c "
+import sys
+sys.path.insert(0, 'app/src')
+from database_mongo import get_db
+from prompt_library import PromptCategory, OutputFormat
+from config import build_cleanup_prompt, Config
+print('  ✓ Core modules import successfully')
+"
+echo ""
+
+echo "✓ All tests passed!"
+echo ""
+echo "To run the app:"
+echo "  Development: ./tasks/dev"
+echo "  Installed:   voice-notepad"

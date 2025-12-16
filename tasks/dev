@@ -1,0 +1,21 @@
+#!/bin/bash
+# Quick development workflow for Voice Notepad V3
+# Runs the app from source without installation
+
+set -e
+
+cd "$(dirname "$0")/.."
+
+echo "=== Voice Notepad V3 Development Mode ==="
+echo ""
+
+# Check if venv exists
+if [ ! -d "app/.venv" ]; then
+    echo "Creating virtual environment..."
+    ./run.sh --help >/dev/null 2>&1  # This creates venv
+fi
+
+echo "Starting Voice Notepad in development mode..."
+echo ""
+
+./run.sh

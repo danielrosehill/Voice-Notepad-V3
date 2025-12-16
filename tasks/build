@@ -1,0 +1,44 @@
+#!/bin/bash
+# Quick build task for Voice Notepad V3
+# Usage: ./tasks/build [--deb|--appimage|--tarball|--all]
+
+set -e
+
+cd "$(dirname "$0")/.."
+
+echo "=== Voice Notepad V3 Build Task ==="
+
+# Default to .deb if no args
+BUILD_TYPE="${1:---deb}"
+
+case "$BUILD_TYPE" in
+    --deb)
+        echo "Building Debian package..."
+        ./build.sh --deb
+        ;;
+    --appimage)
+        echo "Building AppImage..."
+        ./build.sh --appimage
+        ;;
+    --tarball)
+        echo "Building tarball..."
+        ./build.sh --tarball
+        ;;
+    --all)
+        echo "Building all formats..."
+        ./build.sh --all
+        ;;
+    --dev)
+        echo "Building for development (fast, no compression)..."
+        ./build.sh --dev
+        ;;
+    *)
+        echo "Usage: ./tasks/build [--deb|--appimage|--tarball|--all|--dev]"
+        exit 1
+        ;;
+esac
+
+echo ""
+echo "✓ Build complete!"
+echo "Packages are in: dist/"
+ls -lh dist/ 2>/dev/null || echo "No packages found"

@@ -1,0 +1,29 @@
+#!/bin/bash
+# Quick install task for Voice Notepad V3
+# Installs the latest .deb package from dist/
+
+set -e
+
+cd "$(dirname "$0")/.."
+
+echo "=== Voice Notepad V3 Install Task ==="
+
+# Find latest .deb in dist/
+DEB_FILE=$(ls -t dist/voice-notepad_*.deb 2>/dev/null | head -1)
+
+if [ -z "$DEB_FILE" ]; then
+    echo "❌ No .deb package found in dist/"
+    echo "Run './tasks/build' first to create a package"
+    exit 1
+fi
+
+echo "Installing: $DEB_FILE"
+echo ""
+
+sudo dpkg -i "$DEB_FILE"
+
+echo ""
+echo "✓ Voice Notepad V3 installed successfully!"
+echo ""
+echo "Launch with: voice-notepad"
+echo "Or from application menu: Voice Notepad"

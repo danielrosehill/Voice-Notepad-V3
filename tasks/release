@@ -1,0 +1,46 @@
+#!/bin/bash
+# Quick release task for Voice Notepad V3
+# Bumps version, takes screenshots, and builds packages
+# Usage: ./tasks/release [patch|minor|major]
+
+set -e
+
+cd "$(dirname "$0")/.."
+
+echo "=== Voice Notepad V3 Release Task ==="
+
+# Default to patch release
+RELEASE_TYPE="${1:-patch}"
+
+case "$RELEASE_TYPE" in
+    patch|minor|major)
+        echo "Creating $RELEASE_TYPE release..."
+        ./build.sh --release "$RELEASE_TYPE"
+        ;;
+    --deb-only)
+        echo "Creating patch release (.deb only)..."
+        ./build.sh --release-deb
+        ;;
+    *)
+        echo "Usage: ./tasks/release [patch|minor|major|--deb-only]"
+        echo ""
+        echo "Release types:"
+        echo "  patch  - Bug fixes (1.0.0 -> 1.0.1)"
+        echo "  minor  - New features (1.0.0 -> 1.1.0)"
+        echo "  major  - Breaking changes (1.0.0 -> 2.0.0)"
+        echo "  --deb-only - Patch release, .deb only (faster)"
+        exit 1
+        ;;
+esac
+
+echo ""
+echo "✓ Release build complete!"
+echo ""
+echo "Packages created:"
+ls -lh dist/*.deb dist/*.AppImage dist/*.tar.gz dist/*SHA256SUMS.txt 2>/dev/null || echo "Check dist/ for packages"
+echo ""
+echo "Next steps:"
+echo "1. Test the packages"
+echo "2. Commit version bump: git add pyproject.toml && git commit -m 'Bump version'"
+echo "3. Create git tag: git tag v\$(grep '^version' pyproject.toml | cut -d'\"' -f2)"
+echo "4. Push: git push && git push --tags"

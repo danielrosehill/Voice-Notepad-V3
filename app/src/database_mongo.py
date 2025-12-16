@@ -127,6 +127,13 @@ class TranscriptionDB:
                 # Text indexes may not be fully supported, fallback to regex search
                 pass
 
+            # Prompts collection indexes
+            prompts = db.prompts
+            prompts.create_index('category')
+            prompts.create_index('is_enabled')
+            prompts.create_index('is_builtin')
+            prompts.create_index('priority')
+
     def save_transcription(
         self,
         provider: str,
@@ -571,6 +578,227 @@ class TranscriptionDB:
                 ])
 
         return filepath, record_count
+
+    def vacuum(self) -> bool:
+        """Optimize database (Mongita equivalent of SQLite VACUUM).
+
+        For Mongita, this:
+        1. Rebuilds indexes
+        2. Removes orphaned audio files
+        3. Returns statistics
+
+        Returns True if successful.
+        """
+        with self._lock:
+            try:
+                db = self._get_db()
+
+                # Rebuild indexes (drop and recreate)
+                transcriptions = db.transcriptions
+
+                # Get index info first
+                existing_indexes = list(transcriptions.list_indexes())
+
+                # Drop non-_id indexes
+                for idx in existing_indexes:
+                    if idx['name'] != '_id_':
+                        try:
+                            transcriptions.drop_index(idx['name'])
+                        except:
+                            pass
+
+                # Recreate indexes
+                transcriptions.create_index('timestamp')
+                transcriptions.create_index('provider')
+                transcriptions.create_index('source')
+
+                try:
+                    transcriptions.create_index([('transcript_text', 'text')])
+                except:
+                    pass  # Text indexes may not be fully supported
+
+                # Clean up orphaned audio files
+                self._cleanup_orphaned_audio()
+
+                return True
+            except Exception as e:
+                print(f"Optimization failed: {e}")
+                return False
+
+    def _cleanup_orphaned_audio(self):
+        """Remove audio files that have no corresponding database record."""
+        with self._lock:
+            db = self._get_db()
+
+            # Get all audio file paths from database
+            cursor = db.transcriptions.find(
+                {'audio_file_path': {'$ne': None}},
+                {'audio_file_path': 1}
+            )
+            db_audio_paths = {doc.get('audio_file_path') for doc in cursor if doc.get('audio_file_path')}
+
+            # Get all audio files on disk
+            disk_audio_files = set(str(f) for f in AUDIO_ARCHIVE_DIR.glob("*.opus"))
+
+            # Find orphaned files
+            orphaned = disk_audio_files - db_audio_paths
+
+            # Delete orphaned files
+            for orphan_path in orphaned:
+                try:
+                    Path(orphan_path).unlink()
+                    print(f"Deleted orphaned audio file: {orphan_path}")
+                except Exception as e:
+                    print(f"Could not delete {orphan_path}: {e}")
+
+    def is_fts_enabled(self) -> bool:
+        """Check if Full-Text Search is enabled.
+
+        For Mongita, text indexes may be limited. This checks if a text index exists.
+        """
+        with self._lock:
+            try:
+                db = self._get_db()
+                indexes = list(db.transcriptions.list_indexes())
+
+                # Check if any index is a text index
+                for idx in indexes:
+                    if 'text' in idx.get('key', []):
+                        return True
+                return False
+            except:
+                return False
+
+    # ===== PROMPT LIBRARY OPERATIONS =====
+
+    def save_prompt(self, prompt_doc: Dict[str, Any]) -> str:
+        """Save a prompt template and return its ID."""
+        with self._lock:
+            db = self._get_db()
+
+            # Add timestamps if not present
+            if 'created_at' not in prompt_doc:
+                prompt_doc['created_at'] = datetime.now().isoformat()
+            prompt_doc['modified_at'] = datetime.now().isoformat()
+
+            # If _id is provided, do upsert
+            if '_id' in prompt_doc:
+                result = db.prompts.replace_one(
+                    {'_id': prompt_doc['_id']},
+                    prompt_doc,
+                    upsert=True
+                )
+                return str(prompt_doc['_id'])
+            else:
+                result = db.prompts.insert_one(prompt_doc)
+                return str(result.inserted_id)
+
+    def get_prompt(self, prompt_id: str) -> Optional[Dict[str, Any]]:
+        """Get a single prompt by ID."""
+        with self._lock:
+            db = self._get_db()
+            from bson import ObjectId
+
+            try:
+                doc = db.prompts.find_one({'_id': ObjectId(prompt_id)})
+                if doc:
+                    doc['id'] = str(doc['_id'])
+                    del doc['_id']
+                return doc
+            except:
+                return None
+
+    def get_prompts(
+        self,
+        category: Optional[str] = None,
+        is_enabled: Optional[bool] = None,
+        is_builtin: Optional[bool] = None,
+        search: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        """Get prompts with optional filtering."""
+        with self._lock:
+            db = self._get_db()
+
+            query = {}
+
+            if category:
+                query['category'] = category
+
+            if is_enabled is not None:
+                query['is_enabled'] = is_enabled
+
+            if is_builtin is not None:
+                query['is_builtin'] = is_builtin
+
+            if search:
+                # Search in name, description, or tags
+                query['$or'] = [
+                    {'name': {'$regex': search, '$options': 'i'}},
+                    {'description': {'$regex': search, '$options': 'i'}},
+                    {'tags': {'$regex': search, '$options': 'i'}},
+                ]
+
+            cursor = db.prompts.find(query).sort('priority', 1)  # Sort by priority ascending
+            prompts = []
+            for doc in cursor:
+                doc['id'] = str(doc['_id'])
+                del doc['_id']
+                prompts.append(doc)
+
+            return prompts
+
+    def get_enabled_prompts(self, categories: Optional[List[str]] = None) -> List[Dict[str, Any]]:
+        """Get all enabled prompts, optionally filtered by categories."""
+        with self._lock:
+            db = self._get_db()
+
+            query = {'is_enabled': True}
+
+            if categories:
+                query['category'] = {'$in': categories}
+
+            cursor = db.prompts.find(query).sort('priority', 1)
+            prompts = []
+            for doc in cursor:
+                doc['id'] = str(doc['_id'])
+                del doc['_id']
+                prompts.append(doc)
+
+            return prompts
+
+    def update_prompt(self, prompt_id: str, updates: Dict[str, Any]) -> bool:
+        """Update a prompt. Returns True if successful."""
+        with self._lock:
+            db = self._get_db()
+            from bson import ObjectId
+
+            try:
+                updates['modified_at'] = datetime.now().isoformat()
+                result = db.prompts.update_one(
+                    {'_id': ObjectId(prompt_id)},
+                    {'$set': updates}
+                )
+                return result.modified_count > 0
+            except:
+                return False
+
+    def delete_prompt(self, prompt_id: str) -> bool:
+        """Delete a prompt by ID. Returns True if deleted."""
+        with self._lock:
+            db = self._get_db()
+            from bson import ObjectId
+
+            try:
+                result = db.prompts.delete_one({'_id': ObjectId(prompt_id)})
+                return result.deleted_count > 0
+            except:
+                return False
+
+    def get_prompt_categories(self) -> List[str]:
+        """Get list of unique prompt categories."""
+        with self._lock:
+            db = self._get_db()
+            return db.prompts.distinct('category')
 
     def close(self):
         """Close database connection."""
