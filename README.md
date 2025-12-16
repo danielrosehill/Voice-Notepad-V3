@@ -64,6 +64,21 @@ cd Voice-Notepad
 
 The script creates a virtual environment and installs dependencies automatically.
 
+### Development Tasks
+
+Quick access to common tasks via `tasks/` scripts:
+
+```bash
+./tasks/dev        # Run from source
+./tasks/build      # Build packages
+./tasks/install    # Install latest .deb
+./tasks/release    # Create release build
+./tasks/test       # Run tests
+./tasks/clean      # Clean artifacts
+```
+
+See [tasks/README.md](tasks/README.md) for detailed usage.
+
 ## Configuration
 
 Add your API key via Settings in the app, or set environment variables:

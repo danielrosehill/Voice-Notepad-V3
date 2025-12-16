@@ -13,5 +13,8 @@ if [ ! -d ".venv" ]; then
     .venv/bin/python3 -m pip install -q -r requirements.txt
 fi
 
+# Set dev mode flag for visual distinction in window title
+export VOICE_NOTEPAD_DEV_MODE=1
+
 # Use the venv python directly (more reliable than activate)
 exec .venv/bin/python3 -m src.main "$@"

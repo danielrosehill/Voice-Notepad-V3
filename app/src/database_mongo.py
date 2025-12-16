@@ -295,50 +295,50 @@ class TranscriptionDB:
         with self._lock:
             db = self._get_db()
 
-            # MongoDB aggregation pipeline
-            pipeline = [
-                {
-                    '$match': {
-                        'inference_time_ms': {'$ne': None}
-                    }
-                },
-                {
-                    '$group': {
-                        '_id': {
-                            'provider': '$provider',
-                            'model': '$model'
-                        },
-                        'count': {'$sum': 1},
-                        'avg_inference_ms': {'$avg': '$inference_time_ms'},
-                        'total_cost': {'$sum': '$estimated_cost'},
-                        'avg_audio_duration': {'$avg': '$audio_duration_seconds'},
-                        'total_text_length': {'$sum': '$text_length'},
-                        'total_inference_time': {'$sum': '$inference_time_ms'}
-                    }
-                },
-                {
-                    '$sort': {'count': -1}
-                }
-            ]
+            # Mongita doesn't support aggregate, so use find + manual grouping
+            query = {'inference_time_ms': {'$ne': None}}
+            results = list(db.transcriptions.find(query))
 
-            results = list(db.transcriptions.aggregate(pipeline))
+            # Group by provider and model manually
+            grouped = {}
+            for r in results:
+                key = (r.get('provider', 'unknown'), r.get('model', 'unknown'))
+                if key not in grouped:
+                    grouped[key] = {
+                        'count': 0,
+                        'total_inference_ms': 0,
+                        'total_cost': 0,
+                        'total_audio_duration': 0,
+                        'total_text_length': 0,
+                    }
 
-            return [
-                {
-                    "provider": r['_id']['provider'],
-                    "model": r['_id']['model'],
-                    "count": r['count'],
-                    "avg_inference_ms": round(r.get('avg_inference_ms', 0), 1),
-                    "avg_chars_per_sec": round(
-                        (r['total_text_length'] * 1000.0 / r['total_inference_time'])
-                        if r['total_inference_time'] > 0 else 0,
-                        1
-                    ),
-                    "total_cost": round(r.get('total_cost', 0), 4),
-                    "avg_audio_duration": round(r.get('avg_audio_duration', 0), 1),
-                }
-                for r in results
-            ]
+                grouped[key]['count'] += 1
+                grouped[key]['total_inference_ms'] += r.get('inference_time_ms', 0)
+                grouped[key]['total_cost'] += r.get('estimated_cost', 0)
+                grouped[key]['total_audio_duration'] += r.get('audio_duration_seconds', 0)
+                grouped[key]['total_text_length'] += r.get('text_length', 0)
+
+            # Convert to output format and sort by count
+            output = []
+            for (provider, model), stats in grouped.items():
+                count = stats['count']
+                avg_inference_ms = stats['total_inference_ms'] / count if count > 0 else 0
+                avg_audio_duration = stats['total_audio_duration'] / count if count > 0 else 0
+                avg_chars_per_sec = (stats['total_text_length'] * 1000.0 / stats['total_inference_ms']) if stats['total_inference_ms'] > 0 else 0
+
+                output.append({
+                    "provider": provider,
+                    "model": model,
+                    "count": count,
+                    "avg_inference_ms": round(avg_inference_ms, 1),
+                    "avg_chars_per_sec": round(avg_chars_per_sec, 1),
+                    "total_cost": round(stats['total_cost'], 4),
+                    "avg_audio_duration": round(avg_audio_duration, 1),
+                })
+
+            # Sort by count descending
+            output.sort(key=lambda x: x['count'], reverse=True)
+            return output
 
     def get_recent_stats(self, days: int = 7) -> dict:
         """Get statistics for recent days."""
@@ -347,34 +347,24 @@ class TranscriptionDB:
 
             cutoff = (datetime.now() - timedelta(days=days)).isoformat()
 
-            pipeline = [
-                {
-                    '$match': {
-                        'timestamp': {'$gte': cutoff}
-                    }
-                },
-                {
-                    '$group': {
-                        '_id': None,
-                        'count': {'$sum': 1},
-                        'total_cost': {'$sum': '$estimated_cost'},
-                        'avg_inference_ms': {'$avg': '$inference_time_ms'},
-                        'total_chars': {'$sum': '$text_length'},
-                        'total_words': {'$sum': '$word_count'}
-                    }
-                }
-            ]
-
-            results = list(db.transcriptions.aggregate(pipeline))
+            # Mongita doesn't support aggregate, so use find + manual calculation
+            query = {'timestamp': {'$gte': cutoff}}
+            results = list(db.transcriptions.find(query))
 
             if results:
-                r = results[0]
+                count = len(results)
+                total_cost = sum(r.get('estimated_cost', 0) for r in results)
+                inference_times = [r.get('inference_time_ms', 0) for r in results if r.get('inference_time_ms')]
+                avg_inference_ms = sum(inference_times) / len(inference_times) if inference_times else 0
+                total_chars = sum(r.get('text_length', 0) for r in results)
+                total_words = sum(r.get('word_count', 0) for r in results)
+
                 return {
-                    "count": r.get('count', 0),
-                    "total_cost": round(r.get('total_cost', 0), 4),
-                    "avg_inference_ms": round(r.get('avg_inference_ms', 0), 1),
-                    "total_chars": r.get('total_chars', 0),
-                    "total_words": r.get('total_words', 0),
+                    "count": count,
+                    "total_cost": round(total_cost, 4),
+                    "avg_inference_ms": round(avg_inference_ms, 1),
+                    "total_chars": total_chars,
+                    "total_words": total_words,
                 }
 
             return {
@@ -390,24 +380,15 @@ class TranscriptionDB:
         with self._lock:
             db = self._get_db()
 
-            pipeline = [
-                {'$match': query},
-                {
-                    '$group': {
-                        '_id': None,
-                        'count': {'$sum': 1},
-                        'total_cost': {'$sum': '$estimated_cost'}
-                    }
-                }
-            ]
-
-            results = list(db.transcriptions.aggregate(pipeline))
+            # Mongita doesn't support aggregate, so use find + manual sum
+            results = list(db.transcriptions.find(query))
 
             if results:
-                r = results[0]
+                count = len(results)
+                total_cost = sum(r.get('estimated_cost', 0) for r in results)
                 return {
-                    "count": r.get('count', 0),
-                    "total_cost": round(r.get('total_cost', 0), 6),
+                    "count": count,
+                    "total_cost": round(total_cost, 6),
                 }
 
             return {"count": 0, "total_cost": 0}
@@ -463,58 +444,61 @@ class TranscriptionDB:
         with self._lock:
             db = self._get_db()
 
-            pipeline = [
-                {
-                    '$group': {
-                        '_id': '$provider',
-                        'count': {'$sum': 1},
-                        'total_cost': {'$sum': '$estimated_cost'}
-                    }
-                },
-                {'$sort': {'total_cost': -1}}
-            ]
+            # Mongita doesn't support aggregate, so use find + manual grouping
+            results = list(db.transcriptions.find({}))
 
-            results = list(db.transcriptions.aggregate(pipeline))
+            # Group by provider manually
+            grouped = {}
+            for r in results:
+                provider = r.get('provider', 'unknown')
+                if provider not in grouped:
+                    grouped[provider] = {'count': 0, 'total_cost': 0}
 
-            return [
+                grouped[provider]['count'] += 1
+                grouped[provider]['total_cost'] += r.get('estimated_cost', 0)
+
+            # Convert to output format and sort by total_cost descending
+            output = [
                 {
-                    "provider": r['_id'],
-                    "count": r['count'],
-                    "total_cost": round(r.get('total_cost', 0), 6),
+                    "provider": provider,
+                    "count": stats['count'],
+                    "total_cost": round(stats['total_cost'], 6),
                 }
-                for r in results
+                for provider, stats in grouped.items()
             ]
+            output.sort(key=lambda x: x['total_cost'], reverse=True)
+            return output
 
     def get_cost_by_model(self) -> List[dict]:
         """Get cost breakdown by model."""
         with self._lock:
             db = self._get_db()
 
-            pipeline = [
-                {
-                    '$group': {
-                        '_id': {
-                            'provider': '$provider',
-                            'model': '$model'
-                        },
-                        'count': {'$sum': 1},
-                        'total_cost': {'$sum': '$estimated_cost'}
-                    }
-                },
-                {'$sort': {'total_cost': -1}}
-            ]
+            # Mongita doesn't support aggregate, so use find + manual grouping
+            results = list(db.transcriptions.find({}))
 
-            results = list(db.transcriptions.aggregate(pipeline))
+            # Group by provider and model manually
+            grouped = {}
+            for r in results:
+                key = (r.get('provider', 'unknown'), r.get('model', 'unknown'))
+                if key not in grouped:
+                    grouped[key] = {'count': 0, 'total_cost': 0}
 
-            return [
+                grouped[key]['count'] += 1
+                grouped[key]['total_cost'] += r.get('estimated_cost', 0)
+
+            # Convert to output format and sort by total_cost descending
+            output = [
                 {
-                    "provider": r['_id']['provider'],
-                    "model": r['_id']['model'],
-                    "count": r['count'],
-                    "total_cost": round(r.get('total_cost', 0), 6),
+                    "provider": provider,
+                    "model": model,
+                    "count": stats['count'],
+                    "total_cost": round(stats['total_cost'], 6),
                 }
-                for r in results
+                for (provider, model), stats in grouped.items()
             ]
+            output.sort(key=lambda x: x['total_cost'], reverse=True)
+            return output
 
     def export_to_csv(
         self,

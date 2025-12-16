@@ -46,6 +46,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, QThread, pyqtSignal, QTimer, QSize
 import time
 from PyQt6.QtGui import QIcon, QAction, QFont, QClipboard, QShortcut, QKeySequence
+from PyQt6.QtWidgets import QCompleter
 
 from .config import (
     Config, load_config, save_config, load_env_keys,
@@ -76,6 +77,7 @@ from .formats_widget import FormatsWidget
 from .about_widget import AboutWidget
 from .mic_test_widget import MicTestWidget
 from .audio_feedback import get_feedback
+from .prompt_stack_widget import PromptStackWidget
 from .file_transcription_widget import FileTranscriptionWidget
 from .mic_naming_ai import MicrophoneNamingAI
 
@@ -919,7 +921,11 @@ class MainWindow(QMainWindow):
         self.append_mode: bool = False  # Track if next transcription should append
         self.has_cached_audio: bool = False  # Track if we have stopped audio waiting to be transcribed
 
-        self.setWindowTitle("Voice Notepad")
+        # Set window title (add DEV suffix if in dev mode)
+        title = "Voice Notepad"
+        if os.environ.get("VOICE_NOTEPAD_DEV_MODE") == "1":
+            title += " (DEV)"
+        self.setWindowTitle(title)
         self.setMinimumSize(480, 550)
         self.resize(self.config.window_width, self.config.window_height)
 
@@ -1194,16 +1200,6 @@ class MainWindow(QMainWindow):
         prompt_options_layout.setSpacing(8)
         prompt_options_layout.setContentsMargins(8, 8, 8, 8)
 
-        # Foundation layer (always applied) - display as informational text
-        foundation_label = QLabel("<b>Foundation Cleanup (Always Applied):</b>")
-        foundation_label.setStyleSheet("font-size: 11px; color: #495057; margin-bottom: 2px;")
-        prompt_options_layout.addWidget(foundation_label)
-
-        foundation_items = QLabel("• " + "<br>• ".join(FOUNDATION_PROMPT_COMPONENTS))
-        foundation_items.setStyleSheet("font-size: 10px; color: #6c757d; padding-left: 8px; margin-bottom: 8px;")
-        foundation_items.setWordWrap(True)
-        prompt_options_layout.addWidget(foundation_items)
-
         # Optional enhancements checkboxes (Layer 2)
         optional_label = QLabel("<b>Optional Enhancements:</b>")
         optional_label.setStyleSheet("font-size: 11px; color: #495057; margin-top: 4px; margin-bottom: 4px;")
@@ -1233,17 +1229,28 @@ class MainWindow(QMainWindow):
         # Format and Tone row
         format_tone_row = QHBoxLayout()
 
-        # Format dropdown
+        # Format search field with completer
         format_tone_row.addWidget(QLabel("Format:"))
-        self.format_combo = QComboBox()
-        self.format_combo.setMinimumWidth(120)
-        for format_key in FORMAT_TEMPLATES.keys():
-            self.format_combo.addItem(FORMAT_DISPLAY_NAMES[format_key], format_key)
-        idx = self.format_combo.findData(self.config.format_preset)
-        if idx >= 0:
-            self.format_combo.setCurrentIndex(idx)
-        self.format_combo.currentIndexChanged.connect(self._on_format_changed)
-        format_tone_row.addWidget(self.format_combo)
+        self.format_search = QLineEdit()
+        self.format_search.setPlaceholderText("Search formats...")
+        self.format_search.setMinimumWidth(180)
+
+        # Create completer with all format names
+        format_names = [FORMAT_DISPLAY_NAMES[key] for key in FORMAT_TEMPLATES.keys()]
+        self.format_completer = QCompleter(format_names)
+        self.format_completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
+        self.format_completer.setFilterMode(Qt.MatchFlag.MatchContains)
+        self.format_search.setCompleter(self.format_completer)
+
+        # Set initial text from config
+        current_format_name = FORMAT_DISPLAY_NAMES[self.config.format_preset]
+        self.format_search.setText(current_format_name)
+
+        # Connect signals
+        self.format_search.textChanged.connect(self._on_format_search_changed)
+        self.format_completer.activated.connect(self._on_format_selected)
+
+        format_tone_row.addWidget(self.format_search)
 
         format_tone_row.addSpacing(20)
 
@@ -1331,6 +1338,47 @@ class MainWindow(QMainWindow):
         self._update_email_settings_visibility()
 
         layout.addWidget(self.prompt_options_frame)
+
+        # Prompt Stack Section (new multi-select system)
+        prompt_stack_header = QHBoxLayout()
+        prompt_stack_label = QLabel("Advanced: Prompt Stacks")
+        prompt_stack_label.setStyleSheet("font-weight: bold; font-size: 12px; color: #495057;")
+        prompt_stack_header.addWidget(prompt_stack_label)
+
+        # Enable/disable checkbox
+        self.use_prompt_stacks_checkbox = QCheckBox("Enable")
+        self.use_prompt_stacks_checkbox.setChecked(self.config.use_prompt_stacks)
+        self.use_prompt_stacks_checkbox.stateChanged.connect(self._on_use_prompt_stacks_changed)
+        prompt_stack_header.addWidget(self.use_prompt_stacks_checkbox)
+
+        prompt_stack_header.addSpacing(10)
+
+        # Toggle button
+        self.prompt_stack_toggle = QPushButton("▼")
+        self.prompt_stack_toggle.setFixedSize(24, 24)
+        self.prompt_stack_toggle.setStyleSheet("""
+            QPushButton {
+                border: none;
+                background: transparent;
+                font-size: 14px;
+                color: #6c757d;
+            }
+            QPushButton:hover {
+                color: #495057;
+            }
+        """)
+        self.prompt_stack_toggle.clicked.connect(self._toggle_prompt_stack_section)
+        prompt_stack_header.addWidget(self.prompt_stack_toggle)
+
+        prompt_stack_header.addStretch()
+        layout.addLayout(prompt_stack_header)
+
+        # Collapsible prompt stack widget
+        from .config import CONFIG_DIR
+        self.prompt_stack_widget = PromptStackWidget(CONFIG_DIR, self)
+        self.prompt_stack_widget.setVisible(False)  # Start collapsed
+        self.prompt_stack_widget.elements_changed.connect(self._on_prompt_elements_changed)
+        layout.addWidget(self.prompt_stack_widget)
 
         # Quick format selector buttons
         format_quick_select_layout = QHBoxLayout()
@@ -2159,22 +2207,52 @@ class MainWindow(QMainWindow):
         self.prompt_options_frame.setVisible(visible)
         self.prompt_toggle_btn.setText("▼ Formatting Prompt" if visible else "▶ Formatting Prompt")
 
+    def _toggle_prompt_stack_section(self):
+        """Toggle visibility of prompt stack section."""
+        visible = not self.prompt_stack_widget.isVisible()
+        self.prompt_stack_widget.setVisible(visible)
+        self.prompt_stack_toggle.setText("▼" if visible else "▶")
+
+    def _on_prompt_elements_changed(self, element_keys: list):
+        """Handle changes to selected prompt elements from the stack widget."""
+        # Store the selected elements in config
+        self.config.prompt_stack_elements = element_keys
+        save_config(self.config)
+
+    def _on_use_prompt_stacks_changed(self):
+        """Handle enable/disable of prompt stack system."""
+        self.config.use_prompt_stacks = self.use_prompt_stacks_checkbox.isChecked()
+        save_config(self.config)
+
     def _on_prompt_option_changed(self):
         """Handle prompt option checkbox changes - save immediately."""
         for field_name, checkbox in self.prompt_checkboxes.items():
             setattr(self.config, field_name, checkbox.isChecked())
         save_config(self.config)
 
-    def _on_format_changed(self, index: int):
-        """Handle format preset selection change."""
-        format_key = self.format_combo.currentData()
-        self.config.format_preset = format_key
-        save_config(self.config)
-        self._update_email_settings_visibility()
+    def _on_format_search_changed(self, text: str):
+        """Handle format search text changes."""
+        # Check if the entered text exactly matches a format name
+        for format_key, display_name in FORMAT_DISPLAY_NAMES.items():
+            if display_name.lower() == text.lower():
+                self.config.format_preset = format_key
+                save_config(self.config)
+                self._update_email_settings_visibility()
+                if hasattr(self, 'formats_widget'):
+                    self.formats_widget.refresh()
+                break
 
-        # Refresh Formats tab if it's visible
-        if hasattr(self, 'formats_widget'):
-            self.formats_widget.refresh()
+    def _on_format_selected(self, text: str):
+        """Handle format selection from completer."""
+        # Find the format key that matches the display name
+        for format_key, display_name in FORMAT_DISPLAY_NAMES.items():
+            if display_name == text:
+                self.config.format_preset = format_key
+                save_config(self.config)
+                self._update_email_settings_visibility()
+                if hasattr(self, 'formats_widget'):
+                    self.formats_widget.refresh()
+                break
 
         # Sync quick format buttons
         if format_key == "general":
@@ -2232,10 +2310,9 @@ class MainWindow(QMainWindow):
         self.config.format_preset = format_key
         save_config(self.config)
 
-        # Sync the format dropdown in the advanced settings
-        idx = self.format_combo.findData(format_key)
-        if idx >= 0:
-            self.format_combo.setCurrentIndex(idx)
+        # Sync the format search field
+        format_name = FORMAT_DISPLAY_NAMES[format_key]
+        self.format_search.setText(format_name)
 
         # Update email settings visibility
         self._update_email_settings_visibility()
@@ -2931,11 +3008,7 @@ class MainWindow(QMainWindow):
         if text:
             self._copy_to_clipboard_wayland(text)
 
-            # Play clipboard beep
-            feedback = get_feedback()
-            feedback.enabled = self.config.beep_on_clipboard
-            feedback.play_clipboard_beep()
-
+            # Don't play beep here - only play when transcription first arrives
             self.status_label.setText("Copied!")
             self.status_label.setStyleSheet("color: #28a745;")
             QTimer.singleShot(2000, lambda: self.status_label.setText("Ready"))

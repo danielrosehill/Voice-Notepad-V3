@@ -157,6 +157,10 @@ class Config:
     output_format: str = "markdown"  # text, markdown, html, json, xml, yaml
     active_prompt_ids: list = field(default_factory=list)  # List of enabled prompt IDs
 
+    # NEW: Prompt stack system (multi-select elements)
+    prompt_stack_elements: list = field(default_factory=list)  # List of selected element keys
+    use_prompt_stacks: bool = False  # Whether to use prompt stacks instead of legacy format system
+
 
 def load_config() -> Config:
     """Load configuration from disk, or create default."""
@@ -529,6 +533,14 @@ def build_cleanup_prompt(config: Config, use_prompt_library: bool = False) -> st
     # NEW: Use prompt library if enabled
     if use_prompt_library:
         return _build_prompt_from_library(config)
+
+    # NEW: Use prompt stacks if enabled
+    if config.use_prompt_stacks and config.prompt_stack_elements:
+        try:
+            from .prompt_elements import build_prompt_from_elements
+        except ImportError:
+            from prompt_elements import build_prompt_from_elements
+        return build_prompt_from_elements(config.prompt_stack_elements)
 
     # LEGACY: Original hardcoded system (kept for backward compatibility)
     lines = ["Your task is to provide a cleaned transcription of the audio recorded by the user."]
