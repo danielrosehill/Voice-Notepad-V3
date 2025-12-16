@@ -62,33 +62,32 @@ Settings stored in `~/.config/voice-notepad-v3/`:
 
 ### Global Hotkeys
 
-The app supports global hotkeys that work even when the window is minimized or unfocused. Configure in Settings → Hotkeys tab.
+The app supports global hotkeys that work system-wide, even when the window is minimized or unfocused.
 
-**Shortcut Modes:**
+**FIXED F-KEY MAPPING (Current Implementation):**
 
-| Mode | Description |
-|------|-------------|
-| **Single Key (Recommended)** | One key controls everything: Press to start, press again to stop and transcribe. Default: F15. |
-| **Tap to Toggle** | One key toggles recording on/off, caching audio for append mode. A separate key stops and transcribes all cached audio. |
-| **Separate Start/Stop** | Different keys for Start, Stop (discard), and Stop & Transcribe. |
-| **Push-to-Talk (PTT)** | Hold a key to record. Recording stops when you release the key. Configurable action on release (transcribe or discard). |
+| Key | Action | Description |
+|-----|--------|-------------|
+| **F15** | Toggle Recording | Start recording, or stop and cache audio. Audio is cached for append mode. |
+| **F16** | Tap | Same as F15 (toggle recording). |
+| **F17** | Transcribe Only | Transcribe cached audio without starting a new recording. If currently recording, stops and transcribes. |
+| **F18** | Clear/Delete | Delete current recording and clear all cached audio. |
+| **F19** | Append | Start a new recording that will be appended to the cached audio. |
 
-**Available Actions:**
-- **Single Key** - Press to start, press again to stop & transcribe (Single Key mode - simplest workflow)
-- **Toggle Recording** - Start or stop recording, caching audio. If audio is already cached, subsequent recordings append to it (Tap to Toggle mode)
-- **Start Recording** - Begin a new recording (Separate mode)
-- **Stop & Discard** - Stop and discard the current recording (Separate mode)
-- **Stop & Transcribe** - Stop recording and send to AI for transcription. In Tap to Toggle mode, this transcribes all cached audio (all modes)
-- **Push-to-Talk Key** - Hold to record, release to stop (PTT mode)
+**How it Works:**
+1. Press **F15** to start recording
+2. Press **F15** again to stop and cache (audio is held in memory)
+3. Press **F19** to record another segment (appends to cache)
+4. Press **F17** to transcribe all cached segments together
+5. Press **F18** to clear cache and start over
 
-**Default Hotkey:** The app defaults to Single Key mode with F15 as the hotkey. F15 is commonly available on keyboards with macro keys and avoids conflicts with standard applications.
+**Note:** The Settings → Hotkeys tab UI is currently disabled. The F15-F19 mapping is hardcoded for simplicity and will be made configurable in a future release.
 
-**Supported Keys:**
-- F1-F20 (function keys)
-- Modifier combinations (Ctrl+, Alt+, Shift+, Super+)
-- Media keys (on supported keyboards)
-
-**Note:** On Wayland, global hotkeys work via XWayland compatibility layer.
+**Technical Details:**
+- Hotkeys work system-wide (even when app is minimized or unfocused)
+- On Wayland, hotkeys work via XWayland compatibility layer
+- F15-F19 are detected via X11 keysyms (65482-65486)
+- Compatible with keyboards that have macro/function keys beyond F12
 
 ### Supported AI Providers
 

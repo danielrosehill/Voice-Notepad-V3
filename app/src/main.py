@@ -1897,28 +1897,38 @@ class MainWindow(QMainWindow):
         self._setup_configurable_shortcuts()
 
     def _setup_configurable_shortcuts(self):
-        """Set up shortcuts based on user-configured hotkeys."""
-        # Remove old shortcuts if they exist
-        if hasattr(self, '_record_toggle_shortcut'):
-            self._record_toggle_shortcut.setEnabled(False)
-            self._record_toggle_shortcut.deleteLater()
-        if hasattr(self, '_stop_transcribe_shortcut'):
-            self._stop_transcribe_shortcut.setEnabled(False)
-            self._stop_transcribe_shortcut.deleteLater()
+        """Set up fixed F15-F19 shortcuts for when app has focus.
 
-        # Record toggle shortcut (e.g., F15)
-        if self.config.hotkey_record_toggle:
-            key_seq = self._hotkey_to_qt_sequence(self.config.hotkey_record_toggle)
-            if key_seq:
-                self._record_toggle_shortcut = QShortcut(key_seq, self)
-                self._record_toggle_shortcut.activated.connect(self._hotkey_record_toggle)
+        Note: Global hotkeys (work when app is minimized) are handled separately
+        in setup_global_hotkeys(). These in-focus shortcuts provide additional
+        responsiveness when the window has focus.
+        """
+        # Clean up old shortcuts if they exist
+        for attr in ['_f15_shortcut', '_f16_shortcut', '_f17_shortcut', '_f18_shortcut', '_f19_shortcut']:
+            if hasattr(self, attr):
+                shortcut = getattr(self, attr)
+                shortcut.setEnabled(False)
+                shortcut.deleteLater()
 
-        # Stop and transcribe shortcut (e.g., F16)
-        if self.config.hotkey_stop_and_transcribe:
-            key_seq = self._hotkey_to_qt_sequence(self.config.hotkey_stop_and_transcribe)
-            if key_seq:
-                self._stop_transcribe_shortcut = QShortcut(key_seq, self)
-                self._stop_transcribe_shortcut.activated.connect(self._hotkey_stop_and_transcribe)
+        # F15: Toggle recording
+        self._f15_shortcut = QShortcut(QKeySequence("F15"), self)
+        self._f15_shortcut.activated.connect(self._hotkey_toggle_recording)
+
+        # F16: Tap (same as F15)
+        self._f16_shortcut = QShortcut(QKeySequence("F16"), self)
+        self._f16_shortcut.activated.connect(self._hotkey_toggle_recording)
+
+        # F17: Transcribe only
+        self._f17_shortcut = QShortcut(QKeySequence("F17"), self)
+        self._f17_shortcut.activated.connect(self._hotkey_transcribe_only)
+
+        # F18: Delete/clear
+        self._f18_shortcut = QShortcut(QKeySequence("F18"), self)
+        self._f18_shortcut.activated.connect(self._hotkey_delete)
+
+        # F19: Append
+        self._f19_shortcut = QShortcut(QKeySequence("F19"), self)
+        self._f19_shortcut.activated.connect(self._hotkey_append)
 
     def _hotkey_to_qt_sequence(self, hotkey_str: str) -> QKeySequence | None:
         """Convert a hotkey string like 'f15' or 'ctrl+f15' to a QKeySequence."""
@@ -1961,95 +1971,57 @@ class MainWindow(QMainWindow):
         self.hotkey_listener.start()
 
     def _register_hotkeys(self):
-        """Register all configured hotkeys based on the selected mode."""
+        """Register fixed F-key hotkeys for all actions.
+
+        FIXED F-KEY MAPPING (simple implementation):
+        - F15: Toggle recording (start/stop and cache)
+        - F16: Tap (same as F15)
+        - F17: Transcribe cached audio only
+        - F18: Clear cache/delete recording
+        - F19: Append (start new recording to append to cache)
+        """
         # Unregister all existing hotkeys first
-        for name in ["single_key", "record_toggle", "stop_and_transcribe", "start", "stop_discard", "ptt"]:
+        for name in ["f15_toggle", "f16_tap", "f17_transcribe", "f18_delete", "f19_append"]:
             self.hotkey_listener.unregister(name)
 
-        mode = self.config.hotkey_mode
+        # Register fixed F-key hotkeys (always active, ignoring config mode)
+        # F15: Toggle recording
+        self.hotkey_listener.register(
+            "f15_toggle",
+            "f15",
+            lambda: QTimer.singleShot(0, self._hotkey_toggle_recording)
+        )
 
-        if mode == "single_key":
-            # Single Key mode: one key for start, then same key for stop & transcribe
-            if self.config.hotkey_single_key:
-                self.hotkey_listener.register(
-                    "single_key",
-                    self.config.hotkey_single_key,
-                    lambda: QTimer.singleShot(0, self._hotkey_single_key_action)
-                )
+        # F16: Tap (same as F15 toggle)
+        self.hotkey_listener.register(
+            "f16_tap",
+            "f16",
+            lambda: QTimer.singleShot(0, self._hotkey_toggle_recording)
+        )
 
-        elif mode == "tap_toggle":
-            # Tap-to-Toggle mode: one key toggles start/stop
-            if self.config.hotkey_record_toggle:
-                self.hotkey_listener.register(
-                    "record_toggle",
-                    self.config.hotkey_record_toggle,
-                    lambda: QTimer.singleShot(0, self._hotkey_record_toggle)
-                )
-            if self.config.hotkey_stop_and_transcribe:
-                self.hotkey_listener.register(
-                    "stop_and_transcribe",
-                    self.config.hotkey_stop_and_transcribe,
-                    lambda: QTimer.singleShot(0, self._hotkey_stop_and_transcribe)
-                )
+        # F17: Transcribe only (cached audio)
+        self.hotkey_listener.register(
+            "f17_transcribe",
+            "f17",
+            lambda: QTimer.singleShot(0, self._hotkey_transcribe_only)
+        )
 
-        elif mode == "separate":
-            # Separate mode: different keys for start, stop/discard, stop/transcribe
-            if self.config.hotkey_start:
-                self.hotkey_listener.register(
-                    "start",
-                    self.config.hotkey_start,
-                    lambda: QTimer.singleShot(0, self._hotkey_start_only)
-                )
-            if self.config.hotkey_stop_discard:
-                self.hotkey_listener.register(
-                    "stop_discard",
-                    self.config.hotkey_stop_discard,
-                    lambda: QTimer.singleShot(0, self._hotkey_stop_discard)
-                )
-            if self.config.hotkey_stop_and_transcribe:
-                self.hotkey_listener.register(
-                    "stop_and_transcribe",
-                    self.config.hotkey_stop_and_transcribe,
-                    lambda: QTimer.singleShot(0, self._hotkey_stop_and_transcribe)
-                )
+        # F18: Clear cache/delete
+        self.hotkey_listener.register(
+            "f18_delete",
+            "f18",
+            lambda: QTimer.singleShot(0, self._hotkey_delete)
+        )
 
-        elif mode == "ptt":
-            # Push-to-Talk mode: hold to record, release to stop
-            if self.config.hotkey_ptt:
-                # Determine release action
-                if self.config.ptt_release_action == "transcribe":
-                    release_callback = lambda: QTimer.singleShot(0, self._hotkey_stop_and_transcribe)
-                else:
-                    release_callback = lambda: QTimer.singleShot(0, self._hotkey_stop_discard)
+        # F19: Append
+        self.hotkey_listener.register(
+            "f19_append",
+            "f19",
+            lambda: QTimer.singleShot(0, self._hotkey_append)
+        )
 
-                self.hotkey_listener.register(
-                    "ptt",
-                    self.config.hotkey_ptt,
-                    lambda: QTimer.singleShot(0, self._hotkey_start_only),
-                    release_callback=release_callback
-                )
-
-            # Also allow manual stop & transcribe if PTT release is set to discard
-            if self.config.ptt_release_action == "discard" and self.config.hotkey_stop_and_transcribe:
-                self.hotkey_listener.register(
-                    "stop_and_transcribe",
-                    self.config.hotkey_stop_and_transcribe,
-                    lambda: QTimer.singleShot(0, self._hotkey_stop_and_transcribe)
-                )
-
-    def _hotkey_single_key_action(self):
-        """Handle global hotkey for single-key mode (start, then stop & transcribe)."""
-        if self.recorder.is_recording:
-            self.stop_and_transcribe()  # Stop and transcribe
-        else:
-            self.toggle_recording()  # Start recording
-
-    def _hotkey_record_toggle(self):
-        """Handle global hotkey for toggling recording on/off (tap-to-toggle mode).
-
-        When stopped, audio is cached and can be appended to with subsequent recordings.
-        Use the separate transcribe hotkey to send all cached audio for transcription.
-        """
+    def _hotkey_toggle_recording(self):
+        """Handle F15/F16: Toggle recording on/off (caches audio when stopped)."""
         if self.recorder.is_recording:
             self.handle_stop_button()  # Stop and cache (enables append mode)
         else:
@@ -2058,20 +2030,25 @@ class MainWindow(QMainWindow):
                 self.append_mode = True
             self.toggle_recording()  # Start recording (or append if audio is cached)
 
-    def _hotkey_start_only(self):
-        """Handle global hotkey for starting recording only."""
+    def _hotkey_transcribe_only(self):
+        """Handle F17: Transcribe cached audio only (without recording).
+
+        If recording, stops and transcribes. If stopped with cache, transcribes cache.
+        """
+        if self.recorder.is_recording:
+            self.stop_and_transcribe()  # Stop recording and transcribe
+        elif self.accumulated_segments:
+            self.transcribe_cached_audio()  # Transcribe cached audio
+        # else: do nothing (no audio to transcribe)
+
+    def _hotkey_delete(self):
+        """Handle F18: Clear cache/delete recording."""
+        self.delete_recording()
+
+    def _hotkey_append(self):
+        """Handle F19: Append (start new recording to add to cache)."""
         if not self.recorder.is_recording:
-            self.toggle_recording()
-
-    def _hotkey_stop_discard(self):
-        """Handle global hotkey for stop and discard."""
-        if self.recorder.is_recording:
-            self.delete_recording()
-
-    def _hotkey_stop_and_transcribe(self):
-        """Handle global hotkey for stop and transcribe."""
-        if self.recorder.is_recording:
-            self.stop_and_transcribe()
+            self.append_to_transcription()
 
     def toggle_pause_if_recording(self):
         """Toggle pause only if currently recording."""
