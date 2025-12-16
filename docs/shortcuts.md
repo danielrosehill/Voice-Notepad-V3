@@ -15,24 +15,46 @@ These work when the Voice Notepad window is focused.
 
 ## Global Hotkeys
 
-Global hotkeys work system-wide, even when Voice Notepad is minimized or unfocused. Configure them in Settings > Hotkeys.
+Global hotkeys work system-wide, even when Voice Notepad is minimized or unfocused.
 
-Default configuration:
+### Current Hotkey Mapping
 
-| Key | Action |
-|-----|--------|
-| F14 | Start recording |
-| F15 | Stop (discard) |
-| F16 | Stop and transcribe |
+| Key | Action | Description |
+|-----|--------|-------------|
+| F15 | Toggle Recording | Start recording, or stop and cache audio |
+| F16 | Tap | Same as F15 (toggle recording) |
+| F17 | Transcribe Only | Transcribe cached audio without starting a new recording |
+| F18 | Clear/Delete | Delete current recording and clear all cached audio |
+| F19 | Append | Start a new recording that appends to cached audio |
 
-F14-F20 (macro keys) are recommended because they rarely conflict with other applications. These keys are available on keyboards with programmable macro keys.
+### Workflow Example
 
-Three hotkey modes are available:
+1. Press **F15** to start recording
+2. Press **F15** again to stop and cache (audio is held in memory)
+3. Press **F19** to record another segment (appends to cache)
+4. Press **F17** to transcribe all cached segments together
+5. Press **F18** to clear cache and start over
 
-**Tap to Toggle** uses one key to toggle recording on/off, with a separate key to stop and transcribe.
+### Why F15-F19?
 
-**Separate Start/Stop** uses different keys for each action: start, stop (discard), and stop & transcribe.
+These extended function keys are ideal because:
+- They don't conflict with other applications or desktop shortcuts
+- They work reliably across Linux, including Wayland
+- They're available on keyboards with macro/programmable keys
 
-**Push-to-Talk** records while you hold a key and stops when you release it. The action on release (transcribe or discard) is configurable.
+Most standard keyboards only have F1-F12. If your keyboard doesn't have F15+ keys, you can remap other keys or buttons to emit these keycodes.
 
-On Wayland, global hotkeys work via XWayland. Some key combinations may be captured by your desktop environment.
+### Setting Up Hotkeys with Input Remapper
+
+If you have a USB foot pedal, macro keypad, or want to remap standard keys like Pause/Break, see the **[Hotkey Setup Guide](hotkey-setup.md)** for step-by-step instructions using Input Remapper.
+
+Common remapping options:
+- **Pause/Break key** to F15 for toggle recording
+- **USB foot pedal buttons** to F15/F17/F18 for hands-free operation
+- **Extra mouse buttons** to F15 for quick dictation
+
+### Technical Notes
+
+- Hotkeys work via XWayland on Wayland desktops
+- F15-F19 are detected via X11 keysyms (65482-65486)
+- The Settings > Hotkeys tab is currently disabled; a configurable UI is planned for a future release
