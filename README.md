@@ -74,18 +74,25 @@ The script creates a virtual environment and installs dependencies automatically
 
 ### Development Workflow
 
-For quick iteration during development:
+For quick iteration during development, use the dev-install task:
 
 ```bash
-./build.sh --dev   # Fast build + install (skips compression)
+./tasks/dev-install   # Fast build + install (most reliable for testing)
 ```
 
-This builds a .deb package without compression and installs it immediately. Best for rapid testing of changes.
+This builds a .deb package without compression and installs it immediately. This is the most reliable method for testing changes as it installs the app as the user would experience it.
 
 You can also run directly from source:
 
 ```bash
 ./run.sh           # Run from source without installing
+```
+
+Or build and install separately:
+
+```bash
+./build.sh --dev   # Fast build (skips compression)
+./tasks/install    # Install latest .deb from dist/
 ```
 
 ### Development Tasks

@@ -1,0 +1,22 @@
+#!/bin/bash
+# Quick development build + install for Voice Notepad V3
+# Builds a fast .deb (no compression) and immediately installs it
+
+set -e
+
+cd "$(dirname "$0")/.."
+
+echo "=== Voice Notepad V3 Dev Build + Install ==="
+echo ""
+
+echo "Building development package (fast, no compression)..."
+./build.sh --dev
+
+echo ""
+echo "Installing package..."
+./tasks/install
+
+echo ""
+echo "✓ Development build installed!"
+echo ""
+echo "Launch with: voice-notepad"

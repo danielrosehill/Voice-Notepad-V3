@@ -11,6 +11,11 @@ Quick access to common development and build tasks.
 ```
 Run the app from source in development mode (no installation needed).
 
+```bash
+./tasks/dev-install
+```
+Fast build + install workflow (most reliable for testing changes). Builds a .deb without compression and immediately installs it.
+
 ### Building
 
 ```bash
@@ -89,7 +94,13 @@ git tag v1.1.0
 git push && git push --tags
 ```
 
-### Quick Build & Test
+### Quick Build & Test (Recommended)
+```bash
+./tasks/dev-install
+# Test the installed version
+```
+
+Or separately:
 ```bash
 ./tasks/build --dev
 ./tasks/install
@@ -105,6 +116,7 @@ tasks/
 ├── install        # Install latest .deb
 ├── release        # Create release build
 ├── dev            # Run from source
+├── dev-install    # Fast build + install (recommended for testing)
 ├── test           # Run tests
 └── clean          # Clean artifacts
 ```
