@@ -493,6 +493,12 @@ class SettingsDialog(QDialog):
         self.hotkey_fields_layout = QFormLayout(self.hotkey_fields_container)
         self.hotkey_fields_layout.setContentsMargins(0, 0, 0, 0)
 
+        # Single Key mode fields
+        self.single_key_widgets = []
+        self.hotkey_single = HotkeyEdit()
+        self.hotkey_single.setText(self.config.hotkey_single_key.upper())
+        self.single_key_widgets.append(("Single Key:", self.hotkey_single))
+
         # Tap-to-Toggle mode fields
         self.tap_toggle_widgets = []
         self.hotkey_toggle = HotkeyEdit()
@@ -764,7 +770,11 @@ class SettingsDialog(QDialog):
                 item.widget().setParent(None)
 
         # Add appropriate widgets based on mode
-        if mode == "tap_toggle":
+        if mode == "single_key":
+            for label, widget in self.single_key_widgets:
+                self.hotkey_fields_layout.addRow(label, widget)
+
+        elif mode == "tap_toggle":
             for label, widget in self.tap_toggle_widgets:
                 self.hotkey_fields_layout.addRow(label, widget)
             self.hotkey_fields_layout.addRow("Stop && Transcribe:", self.hotkey_stop_transcribe)
@@ -793,7 +803,9 @@ class SettingsDialog(QDialog):
         """Fill in the suggested hotkeys based on current mode."""
         mode = self.hotkey_mode_combo.currentData()
 
-        if mode == "tap_toggle":
+        if mode == "single_key":
+            self.hotkey_single.setText(SUGGESTED_HOTKEYS["single_key"])
+        elif mode == "tap_toggle":
             self.hotkey_toggle.setText(SUGGESTED_HOTKEYS["record_toggle"])
             self.hotkey_stop_transcribe.setText(SUGGESTED_HOTKEYS["stop_and_transcribe"])
         elif mode == "separate":
@@ -1951,12 +1963,21 @@ class MainWindow(QMainWindow):
     def _register_hotkeys(self):
         """Register all configured hotkeys based on the selected mode."""
         # Unregister all existing hotkeys first
-        for name in ["record_toggle", "stop_and_transcribe", "start", "stop_discard", "ptt"]:
+        for name in ["single_key", "record_toggle", "stop_and_transcribe", "start", "stop_discard", "ptt"]:
             self.hotkey_listener.unregister(name)
 
         mode = self.config.hotkey_mode
 
-        if mode == "tap_toggle":
+        if mode == "single_key":
+            # Single Key mode: one key for start, then same key for stop & transcribe
+            if self.config.hotkey_single_key:
+                self.hotkey_listener.register(
+                    "single_key",
+                    self.config.hotkey_single_key,
+                    lambda: QTimer.singleShot(0, self._hotkey_single_key_action)
+                )
+
+        elif mode == "tap_toggle":
             # Tap-to-Toggle mode: one key toggles start/stop
             if self.config.hotkey_record_toggle:
                 self.hotkey_listener.register(
@@ -2016,12 +2037,26 @@ class MainWindow(QMainWindow):
                     lambda: QTimer.singleShot(0, self._hotkey_stop_and_transcribe)
                 )
 
-    def _hotkey_record_toggle(self):
-        """Handle global hotkey for toggling recording on/off (tap-to-toggle mode)."""
+    def _hotkey_single_key_action(self):
+        """Handle global hotkey for single-key mode (start, then stop & transcribe)."""
         if self.recorder.is_recording:
-            self.delete_recording()  # Stop and discard
+            self.stop_and_transcribe()  # Stop and transcribe
         else:
             self.toggle_recording()  # Start recording
+
+    def _hotkey_record_toggle(self):
+        """Handle global hotkey for toggling recording on/off (tap-to-toggle mode).
+
+        When stopped, audio is cached and can be appended to with subsequent recordings.
+        Use the separate transcribe hotkey to send all cached audio for transcription.
+        """
+        if self.recorder.is_recording:
+            self.handle_stop_button()  # Stop and cache (enables append mode)
+        else:
+            # If we have cached audio, enable append mode before starting
+            if self.accumulated_segments:
+                self.append_mode = True
+            self.toggle_recording()  # Start recording (or append if audio is cached)
 
     def _hotkey_start_only(self):
         """Handle global hotkey for starting recording only."""

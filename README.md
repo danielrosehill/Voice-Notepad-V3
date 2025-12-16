@@ -72,6 +72,22 @@ cd Voice-Notepad
 
 The script creates a virtual environment and installs dependencies automatically.
 
+### Development Workflow
+
+For quick iteration during development:
+
+```bash
+./build.sh --dev   # Fast build + install (skips compression)
+```
+
+This builds a .deb package without compression and installs it immediately. Best for rapid testing of changes.
+
+You can also run directly from source:
+
+```bash
+./run.sh           # Run from source without installing
+```
+
 ### Development Tasks
 
 Quick access to common tasks via `tasks/` scripts:

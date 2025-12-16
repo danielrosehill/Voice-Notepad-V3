@@ -350,14 +350,16 @@ class HotkeyCapture:
 
 # Suggested hotkeys for users with macro keys
 SUGGESTED_HOTKEYS = {
+    # Single Key mode (primary/recommended)
+    "single_key": "F15",
     # Tap-to-Toggle mode
-    "record_toggle": "F15",
-    "stop_and_transcribe": "F16",
+    "record_toggle": "F16",
+    "stop_and_transcribe": "F17",
     # Separate mode
-    "start": "F15",
-    "stop_discard": "F16",
+    "start": "F16",
+    "stop_discard": "F17",
     # PTT mode
-    "ptt": "F15",
+    "ptt": "F16",
 }
 
 HOTKEY_DESCRIPTIONS = {
@@ -370,12 +372,14 @@ HOTKEY_DESCRIPTIONS = {
 
 # Hotkey mode display names
 HOTKEY_MODE_NAMES = {
+    "single_key": "Single Key (Recommended)",
     "tap_toggle": "Tap to Toggle",
     "separate": "Separate Start/Stop",
     "ptt": "Push-to-Talk (PTT)",
 }
 
 HOTKEY_MODE_DESCRIPTIONS = {
+    "single_key": "One key controls everything: Press to start, press again to stop and transcribe. Simple and efficient.",
     "tap_toggle": "One key toggles recording on/off. A separate key stops and transcribes.",
     "separate": "Different keys for Start, Stop (discard), and Stop & Transcribe.",
     "ptt": "Hold a key to record. Recording stops when you release the key.",

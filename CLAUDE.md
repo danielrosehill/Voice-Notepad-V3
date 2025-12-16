@@ -68,18 +68,20 @@ The app supports global hotkeys that work even when the window is minimized or u
 
 | Mode | Description |
 |------|-------------|
-| **Tap to Toggle** | One key toggles recording on/off. A separate key stops and transcribes. |
+| **Single Key (Recommended)** | One key controls everything: Press to start, press again to stop and transcribe. Default: F15. |
+| **Tap to Toggle** | One key toggles recording on/off, caching audio for append mode. A separate key stops and transcribes all cached audio. |
 | **Separate Start/Stop** | Different keys for Start, Stop (discard), and Stop & Transcribe. |
 | **Push-to-Talk (PTT)** | Hold a key to record. Recording stops when you release the key. Configurable action on release (transcribe or discard). |
 
 **Available Actions:**
-- **Toggle Recording** - Start or stop recording (Tap to Toggle mode)
+- **Single Key** - Press to start, press again to stop & transcribe (Single Key mode - simplest workflow)
+- **Toggle Recording** - Start or stop recording, caching audio. If audio is already cached, subsequent recordings append to it (Tap to Toggle mode)
 - **Start Recording** - Begin a new recording (Separate mode)
 - **Stop & Discard** - Stop and discard the current recording (Separate mode)
-- **Stop & Transcribe** - Stop recording and send to AI for transcription (all modes)
+- **Stop & Transcribe** - Stop recording and send to AI for transcription. In Tap to Toggle mode, this transcribes all cached audio (all modes)
 - **Push-to-Talk Key** - Hold to record, release to stop (PTT mode)
 
-**Recommended Keys:** F14-F20 (macro keys) are suggested to avoid conflicts with other applications. These keys are available on keyboards with programmable macro keys.
+**Default Hotkey:** The app defaults to Single Key mode with F15 as the hotkey. F15 is commonly available on keyboards with macro keys and avoids conflicts with standard applications.
 
 **Supported Keys:**
 - F1-F20 (function keys)
