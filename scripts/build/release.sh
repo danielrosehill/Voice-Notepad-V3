@@ -1,7 +1,6 @@
 #!/bin/bash
 # Release script for Voice Notepad
 # - Increments version (patch by default)
-# - Takes screenshots
 # - Builds packages (all formats for public release, or deb-only for personal use)
 #
 # Usage: ./scripts/build/release.sh [major|minor|patch] [--deb-only]
@@ -85,7 +84,6 @@ fi
 echo ""
 echo "=== Release Complete ==="
 echo "Version: $NEW_VERSION"
-echo "Screenshots: screenshots/$VERSION_UNDERSCORE/"
 
 if [ "$DEB_ONLY" = true ]; then
     echo "Package: dist/voice-notepad_${NEW_VERSION}_amd64.deb"
