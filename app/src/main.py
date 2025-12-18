@@ -597,6 +597,15 @@ class MainWindow(QMainWindow):
         self.format_button_group.addButton(self.social_post_format_btn)
         format_row2.addWidget(self.social_post_format_btn)
 
+        # Custom button (shown when using prompt stacks)
+        self.custom_format_btn = QPushButton("Custom")
+        self.custom_format_btn.setCheckable(True)
+        self.custom_format_btn.setMinimumHeight(32)
+        self.custom_format_btn.setToolTip("Custom prompt configuration active (using Prompt Stacks)")
+        self.custom_format_btn.clicked.connect(self._on_custom_format_clicked)
+        self.format_button_group.addButton(self.custom_format_btn)
+        format_row2.addWidget(self.custom_format_btn)
+
         # Manage Formats button
         manage_formats_btn = QPushButton("⚙️ Manage Formats...")
         manage_formats_btn.setFixedHeight(32)
@@ -622,33 +631,11 @@ class MainWindow(QMainWindow):
 
         format_quick_select_layout.addLayout(format_row2)
 
-        # Style the format buttons with color-coding by category
-        # General formats (gray)
-        general_style = """
-            QPushButton {
-                background-color: #e9ecef;
-                color: #495057;
-                border: 2px solid #ced4da;
-                border-radius: 6px;
-                font-weight: bold;
-                font-size: 12px;
-                padding: 4px 12px;
-            }
-            QPushButton:hover {
-                background-color: #dee2e6;
-                border-color: #adb5bd;
-            }
-            QPushButton:checked {
-                background-color: #6c757d;
-                color: white;
-                border-color: #6c757d;
-            }
-        """
-        # Work formats (blue)
-        work_style = """
+        # Style the format buttons - unified appearance with green highlighting for active
+        format_button_style = """
             QPushButton {
                 background-color: #cfe2ff;
-                color: #084298;
+                color: #000000;
                 border: 2px solid #9ec5fe;
                 border-radius: 6px;
                 font-weight: bold;
@@ -660,88 +647,30 @@ class MainWindow(QMainWindow):
                 border-color: #6ea8fe;
             }
             QPushButton:checked {
-                background-color: #0d6efd;
+                background-color: #28a745;
                 color: white;
-                border-color: #0d6efd;
-            }
-        """
-        # Documentation formats (purple)
-        docs_style = """
-            QPushButton {
-                background-color: #e0cffc;
-                color: #59359a;
-                border: 2px solid #c29ffa;
-                border-radius: 6px;
-                font-weight: bold;
-                font-size: 12px;
-                padding: 4px 12px;
-            }
-            QPushButton:hover {
-                background-color: #d3b9f8;
-                border-color: #a370f7;
-            }
-            QPushButton:checked {
-                background-color: #6f42c1;
-                color: white;
-                border-color: #6f42c1;
-            }
-        """
-        # List formats (green)
-        list_style = """
-            QPushButton {
-                background-color: #d1e7dd;
-                color: #0f5132;
-                border: 2px solid #a3cfbb;
-                border-radius: 6px;
-                font-weight: bold;
-                font-size: 12px;
-                padding: 4px 12px;
-            }
-            QPushButton:hover {
-                background-color: #badbcc;
-                border-color: #75b798;
-            }
-            QPushButton:checked {
-                background-color: #198754;
-                color: white;
-                border-color: #198754;
-            }
-        """
-        # Creative formats (orange)
-        creative_style = """
-            QPushButton {
-                background-color: #ffe5d0;
-                color: #984c0c;
-                border: 2px solid #ffc99a;
-                border-radius: 6px;
-                font-weight: bold;
-                font-size: 12px;
-                padding: 4px 12px;
-            }
-            QPushButton:hover {
-                background-color: #ffd9b8;
-                border-color: #ffb070;
-            }
-            QPushButton:checked {
-                background-color: #fd7e14;
-                color: white;
-                border-color: #fd7e14;
+                border-color: #28a745;
+                border-width: 3px;
             }
         """
 
-        # Apply styles by category
-        self.general_format_btn.setStyleSheet(general_style)
-        self.verbatim_format_btn.setStyleSheet(general_style)
-        self.email_format_btn.setStyleSheet(work_style)
-        self.ai_prompt_format_btn.setStyleSheet(work_style)
-        self.system_prompt_format_btn.setStyleSheet(work_style)
-        self.dev_prompt_format_btn.setStyleSheet(work_style)
-        self.tech_docs_format_btn.setStyleSheet(docs_style)
-        self.todo_format_btn.setStyleSheet(list_style)
-        self.social_post_format_btn.setStyleSheet(creative_style)
+        # Apply unified style to all format buttons
+        self.general_format_btn.setStyleSheet(format_button_style)
+        self.verbatim_format_btn.setStyleSheet(format_button_style)
+        self.email_format_btn.setStyleSheet(format_button_style)
+        self.ai_prompt_format_btn.setStyleSheet(format_button_style)
+        self.system_prompt_format_btn.setStyleSheet(format_button_style)
+        self.dev_prompt_format_btn.setStyleSheet(format_button_style)
+        self.tech_docs_format_btn.setStyleSheet(format_button_style)
+        self.todo_format_btn.setStyleSheet(format_button_style)
+        self.social_post_format_btn.setStyleSheet(format_button_style)
+        self.custom_format_btn.setStyleSheet(format_button_style)
 
         # Set initial button state based on config
-        if self.config.format_preset == "verbatim":
+        if self.config.use_prompt_stacks:
+            # If using prompt stacks, show Custom as active
+            self.custom_format_btn.setChecked(True)
+        elif self.config.format_preset == "verbatim":
             self.verbatim_format_btn.setChecked(True)
         elif self.config.format_preset == "email":
             self.email_format_btn.setChecked(True)
@@ -1465,6 +1394,31 @@ class MainWindow(QMainWindow):
         self.config.use_prompt_stacks = self.use_prompt_stacks_checkbox.isChecked()
         save_config(self.config)
 
+        # Update format button selection
+        if self.config.use_prompt_stacks:
+            # Check the Custom button
+            self.custom_format_btn.setChecked(True)
+        else:
+            # Revert to the configured format preset
+            if self.config.format_preset == "verbatim":
+                self.verbatim_format_btn.setChecked(True)
+            elif self.config.format_preset == "email":
+                self.email_format_btn.setChecked(True)
+            elif self.config.format_preset == "ai_prompt":
+                self.ai_prompt_format_btn.setChecked(True)
+            elif self.config.format_preset == "system_prompt":
+                self.system_prompt_format_btn.setChecked(True)
+            elif self.config.format_preset == "dev_prompt":
+                self.dev_prompt_format_btn.setChecked(True)
+            elif self.config.format_preset == "tech_docs":
+                self.tech_docs_format_btn.setChecked(True)
+            elif self.config.format_preset == "todo":
+                self.todo_format_btn.setChecked(True)
+            elif self.config.format_preset == "social_post":
+                self.social_post_format_btn.setChecked(True)
+            else:
+                self.general_format_btn.setChecked(True)
+
     def _set_quick_format(self, format_key: str):
         """Handle quick format button clicks.
 
@@ -1472,6 +1426,12 @@ class MainWindow(QMainWindow):
         """
         # Update the config
         self.config.format_preset = format_key
+
+        # Disable custom mode when selecting a preset format
+        if self.config.use_prompt_stacks:
+            self.config.use_prompt_stacks = False
+            if hasattr(self, 'use_prompt_stacks_checkbox'):
+                self.use_prompt_stacks_checkbox.setChecked(False)
 
         # If verbatim is selected, configure minimal optional enhancements
         if format_key == "verbatim":
@@ -1488,6 +1448,25 @@ class MainWindow(QMainWindow):
             self._update_prompt_indicator()
 
         save_config(self.config)
+
+    def _on_custom_format_clicked(self):
+        """Handle Custom button click - open Prompt Stacks tab."""
+        # Check the Custom button since it was just clicked
+        self.custom_format_btn.setChecked(True)
+
+        # Enable prompt stacks mode
+        self.config.use_prompt_stacks = True
+        if hasattr(self, 'use_prompt_stacks_checkbox'):
+            self.use_prompt_stacks_checkbox.setChecked(True)
+        save_config(self.config)
+
+        # Switch to Prompt Stacks tab
+        if hasattr(self, 'tabs'):
+            # Find the Prompt Stacks tab index
+            for i in range(self.tabs.count()):
+                if self.tabs.tabText(i) == "Prompt Stacks":
+                    self.tabs.setCurrentIndex(i)
+                    break
 
     def get_selected_microphone_index(self):
         """Get the index of the configured microphone.
