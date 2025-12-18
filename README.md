@@ -2,9 +2,10 @@
 
 A desktop application for voice recording with AI-powered transcription and cleanup. Uses multimodal AI models to transcribe audio and clean it up in a single pass, eliminating the traditional two-step ASR + LLM approach.
 
-![Voice Notepad Screenshot](screenshots/manual/1.png)
+![Voice Notepad Screenshot](screenshots/manual/2.png)
 
 ![Vibe Coding Disclosure](graphics/vibe-coding-disclosure.png)
+
 
 **Download:** [GitHub Releases](https://github.com/danielrosehill/Voice-Notepad/releases) (AppImage, Windows Installer, Debian .deb, Tarball)
 
