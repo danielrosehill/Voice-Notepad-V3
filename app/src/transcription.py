@@ -26,6 +26,16 @@ class TranscriptionClient(ABC):
         """Transcribe audio with cleanup prompt."""
         pass
 
+    @abstractmethod
+    def rewrite_text(self, text: str, instruction: str) -> TranscriptionResult:
+        """Rewrite text with given instruction (no audio)."""
+        pass
+
+    @abstractmethod
+    def generate_title(self, text: str) -> str:
+        """Generate a short title for the given text."""
+        pass
+
 
 class GeminiClient(TranscriptionClient):
     """Google Gemini API client for audio transcription."""
@@ -66,6 +76,58 @@ class GeminiClient(TranscriptionClient):
             input_tokens=input_tokens,
             output_tokens=output_tokens
         )
+
+    def rewrite_text(self, text: str, instruction: str) -> TranscriptionResult:
+        """Rewrite text using Gemini (text-only, no audio)."""
+        client = self._get_client()
+
+        prompt = f"{instruction}\n\nText to rewrite:\n{text}"
+
+        response = client.models.generate_content(
+            model=self.model,
+            contents=[prompt]
+        )
+
+        # Extract usage metadata
+        input_tokens = 0
+        output_tokens = 0
+        if hasattr(response, 'usage_metadata') and response.usage_metadata:
+            input_tokens = getattr(response.usage_metadata, 'prompt_token_count', 0) or 0
+            output_tokens = getattr(response.usage_metadata, 'candidates_token_count', 0) or 0
+
+        return TranscriptionResult(
+            text=response.text,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens
+        )
+
+    def generate_title(self, text: str) -> str:
+        """Generate a short title using Gemini with output constraints."""
+        client = self._get_client()
+        from google.genai import types
+
+        prompt = (
+            "Generate a short, descriptive title for the following text. "
+            "The title should be 3-6 words, suitable for a filename (no special characters). "
+            "Respond with ONLY the title, no explanations or punctuation at the end.\n\n"
+            f"Text:\n{text[:1000]}"  # Limit to first 1000 chars for efficiency
+        )
+
+        response = client.models.generate_content(
+            model=self.model,
+            contents=[prompt],
+            config=types.GenerateContentConfig(
+                response_mime_type="text/plain",
+                max_output_tokens=20,  # Keep titles short
+            )
+        )
+
+        # Clean up title: remove quotes, periods, and sanitize for filename
+        title = response.text.strip().strip('"\'.,!?')
+        # Replace spaces with underscores and remove special chars
+        title = ''.join(c if c.isalnum() or c in ' -_' else '' for c in title)
+        title = '_'.join(title.split())  # Replace spaces with underscores
+        return title or "untitled"
 
 
 class OpenAIClient(TranscriptionClient):
@@ -121,6 +183,68 @@ class OpenAIClient(TranscriptionClient):
             output_tokens=output_tokens
         )
 
+    def rewrite_text(self, text: str, instruction: str) -> TranscriptionResult:
+        """Rewrite text using OpenAI (text-only, no audio)."""
+        client = self._get_client()
+
+        # Use non-audio model for text rewriting (cheaper)
+        text_model = "gpt-4o-mini" if "audio" in self.model else self.model
+
+        response = client.chat.completions.create(
+            model=text_model,
+            messages=[
+                {
+                    "role": "system",
+                    "content": instruction
+                },
+                {
+                    "role": "user",
+                    "content": text
+                }
+            ]
+        )
+
+        # Extract usage data
+        input_tokens = 0
+        output_tokens = 0
+        if hasattr(response, 'usage') and response.usage:
+            input_tokens = getattr(response.usage, 'prompt_tokens', 0) or 0
+            output_tokens = getattr(response.usage, 'completion_tokens', 0) or 0
+
+        return TranscriptionResult(
+            text=response.choices[0].message.content,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens
+        )
+
+    def generate_title(self, text: str) -> str:
+        """Generate a short title using OpenAI."""
+        client = self._get_client()
+
+        # Use cheaper model for title generation
+        text_model = "gpt-4o-mini" if "audio" in self.model else self.model
+
+        prompt = (
+            "Generate a short, descriptive title for the following text. "
+            "The title should be 3-6 words, suitable for a filename (no special characters). "
+            "Respond with ONLY the title, no explanations or punctuation at the end."
+        )
+
+        response = client.chat.completions.create(
+            model=text_model,
+            messages=[
+                {"role": "system", "content": prompt},
+                {"role": "user", "content": text[:1000]}
+            ],
+            max_tokens=20
+        )
+
+        # Clean up title
+        title = response.choices[0].message.content.strip().strip('"\'.,!?')
+        title = ''.join(c if c.isalnum() or c in ' -_' else '' for c in title)
+        title = '_'.join(title.split())
+        return title or "untitled"
+
 
 class MistralClient(TranscriptionClient):
     """Mistral API client for audio transcription using Voxtral."""
@@ -171,6 +295,68 @@ class MistralClient(TranscriptionClient):
             input_tokens=input_tokens,
             output_tokens=output_tokens
         )
+
+    def rewrite_text(self, text: str, instruction: str) -> TranscriptionResult:
+        """Rewrite text using Mistral (text-only, no audio)."""
+        client = self._get_client()
+
+        # Use text-only model for rewriting (Voxtral is audio-specific)
+        text_model = "mistral-large-latest"
+
+        response = client.chat.complete(
+            model=text_model,
+            messages=[
+                {
+                    "role": "system",
+                    "content": instruction
+                },
+                {
+                    "role": "user",
+                    "content": text
+                }
+            ]
+        )
+
+        # Extract usage data
+        input_tokens = 0
+        output_tokens = 0
+        if hasattr(response, 'usage') and response.usage:
+            input_tokens = getattr(response.usage, 'prompt_tokens', 0) or 0
+            output_tokens = getattr(response.usage, 'completion_tokens', 0) or 0
+
+        return TranscriptionResult(
+            text=response.choices[0].message.content,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens
+        )
+
+    def generate_title(self, text: str) -> str:
+        """Generate a short title using Mistral."""
+        client = self._get_client()
+
+        # Use text-only model
+        text_model = "mistral-large-latest"
+
+        prompt = (
+            "Generate a short, descriptive title for the following text. "
+            "The title should be 3-6 words, suitable for a filename (no special characters). "
+            "Respond with ONLY the title, no explanations or punctuation at the end."
+        )
+
+        response = client.chat.complete(
+            model=text_model,
+            messages=[
+                {"role": "system", "content": prompt},
+                {"role": "user", "content": text[:1000]}
+            ],
+            max_tokens=20
+        )
+
+        # Clean up title
+        title = response.choices[0].message.content.strip().strip('"\'.,!?')
+        title = ''.join(c if c.isalnum() or c in ' -_' else '' for c in title)
+        title = '_'.join(title.split())
+        return title or "untitled"
 
 
 class OpenRouterClient(TranscriptionClient):
@@ -255,6 +441,84 @@ class OpenRouterClient(TranscriptionClient):
             actual_cost=actual_cost,
             generation_id=generation_id,
         )
+
+    def rewrite_text(self, text: str, instruction: str) -> TranscriptionResult:
+        """Rewrite text using OpenRouter (text-only, no audio)."""
+        client = self._get_client()
+
+        response = client.chat.completions.create(
+            model=self.model,
+            messages=[
+                {
+                    "role": "system",
+                    "content": instruction
+                },
+                {
+                    "role": "user",
+                    "content": text
+                }
+            ],
+            extra_body={"usage": {"include": True}},
+        )
+
+        # Extract usage data
+        input_tokens = 0
+        output_tokens = 0
+        actual_cost = None
+        generation_id = None
+
+        if hasattr(response, 'id') and response.id:
+            generation_id = response.id
+
+        if hasattr(response, 'usage') and response.usage:
+            input_tokens = getattr(response.usage, 'prompt_tokens', 0) or 0
+            output_tokens = getattr(response.usage, 'completion_tokens', 0) or 0
+            if hasattr(response.usage, 'cost'):
+                actual_cost = getattr(response.usage, 'cost', None)
+
+        # Try to fetch cost from generation endpoint if not in response
+        if actual_cost is None and generation_id:
+            try:
+                from .openrouter_api import get_openrouter_api
+                api = get_openrouter_api(self.api_key)
+                gen_usage = api.get_generation_usage(generation_id)
+                if gen_usage:
+                    actual_cost = gen_usage.cost
+            except Exception:
+                pass
+
+        return TranscriptionResult(
+            text=response.choices[0].message.content,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            actual_cost=actual_cost,
+            generation_id=generation_id,
+        )
+
+    def generate_title(self, text: str) -> str:
+        """Generate a short title using OpenRouter."""
+        client = self._get_client()
+
+        prompt = (
+            "Generate a short, descriptive title for the following text. "
+            "The title should be 3-6 words, suitable for a filename (no special characters). "
+            "Respond with ONLY the title, no explanations or punctuation at the end."
+        )
+
+        response = client.chat.completions.create(
+            model=self.model,
+            messages=[
+                {"role": "system", "content": prompt},
+                {"role": "user", "content": text[:1000]}
+            ],
+            max_tokens=20
+        )
+
+        # Clean up title
+        title = response.choices[0].message.content.strip().strip('"\'.,!?')
+        title = ''.join(c if c.isalnum() or c in ' -_' else '' for c in title)
+        title = '_'.join(title.split())
+        return title or "untitled"
 
 
 def get_client(provider: str, api_key: str, model: str) -> TranscriptionClient:

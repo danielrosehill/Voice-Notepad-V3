@@ -79,6 +79,7 @@ from .mic_naming_ai import MicrophoneNamingAI
 from .prompt_options_dialog import PromptOptionsDialog
 from .format_manager_dialog import FormatManagerDialog
 from .stack_manager_dialog import StackManagerDialog
+from .rewrite_dialog import RewriteDialog
 
 
 class HotkeyEdit(QLineEdit):
@@ -187,6 +188,63 @@ class TranscriptionWorker(QThread):
             result = client.transcribe(compressed_audio, self.prompt)
             self.inference_time_ms = int((time.time() - start_time) * 1000)
             self.finished.emit(result)
+        except Exception as e:
+            self.error.emit(str(e))
+
+
+class RewriteWorker(QThread):
+    """Worker thread for text rewriting API calls."""
+
+    finished = pyqtSignal(TranscriptionResult)
+    error = pyqtSignal(str)
+    status = pyqtSignal(str)
+
+    def __init__(
+        self,
+        text: str,
+        instruction: str,
+        provider: str,
+        api_key: str,
+        model: str,
+    ):
+        super().__init__()
+        self.text = text
+        self.instruction = instruction
+        self.provider = provider
+        self.api_key = api_key
+        self.model = model
+        self.inference_time_ms: int = 0
+
+    def run(self):
+        try:
+            self.status.emit("Rewriting...")
+            start_time = time.time()
+            client = get_client(self.provider, self.api_key, self.model)
+            result = client.rewrite_text(self.text, self.instruction)
+            self.inference_time_ms = int((time.time() - start_time) * 1000)
+            self.finished.emit(result)
+        except Exception as e:
+            self.error.emit(str(e))
+
+
+class TitleGeneratorWorker(QThread):
+    """Worker thread for title generation."""
+
+    finished = pyqtSignal(str)
+    error = pyqtSignal(str)
+
+    def __init__(self, text: str, provider: str, api_key: str, model: str):
+        super().__init__()
+        self.text = text
+        self.provider = provider
+        self.api_key = api_key
+        self.model = model
+
+    def run(self):
+        try:
+            client = get_client(self.provider, self.api_key, self.model)
+            title = client.generate_title(self.text)
+            self.finished.emit(title)
         except Exception as e:
             self.error.emit(str(e))
 
@@ -795,7 +853,59 @@ class MainWindow(QMainWindow):
         self.clear_btn.clicked.connect(self.clear_transcription)
         bottom.addWidget(self.clear_btn)
 
-        self.save_btn = QPushButton("Save")
+        self.rewrite_btn = QPushButton("✍️ Rewrite")
+        self.rewrite_btn.setMinimumHeight(38)
+        self.rewrite_btn.setEnabled(False)  # Disabled until we have text
+        self.rewrite_btn.setToolTip(
+            "Send the transcript back to the AI with custom instructions to rewrite it"
+        )
+        self.rewrite_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #17a2b8;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                font-weight: bold;
+                font-size: 13px;
+            }
+            QPushButton:hover {
+                background-color: #138496;
+            }
+            QPushButton:disabled {
+                background-color: #6c757d;
+                color: #aaa;
+            }
+        """)
+        self.rewrite_btn.clicked.connect(self.rewrite_transcript)
+        bottom.addWidget(self.rewrite_btn)
+
+        self.download_btn = QPushButton("⬇ Download")
+        self.download_btn.setMinimumHeight(38)
+        self.download_btn.setEnabled(False)  # Disabled until we have text
+        self.download_btn.setToolTip(
+            "Download the transcript with an AI-generated filename"
+        )
+        self.download_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #28a745;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                font-weight: bold;
+                font-size: 13px;
+            }
+            QPushButton:hover {
+                background-color: #218838;
+            }
+            QPushButton:disabled {
+                background-color: #6c757d;
+                color: #aaa;
+            }
+        """)
+        self.download_btn.clicked.connect(self.download_transcript)
+        bottom.addWidget(self.download_btn)
+
+        self.save_btn = QPushButton("Save As...")
         self.save_btn.setMinimumHeight(38)
         self.save_btn.clicked.connect(self.save_to_file)
         bottom.addWidget(self.save_btn)
@@ -1131,14 +1241,20 @@ class MainWindow(QMainWindow):
             self.stop_and_transcribe()
 
     def update_word_count(self):
-        """Update the word count display."""
+        """Update the word count display and enable/disable buttons."""
         text = self.text_output.toPlainText()
         if text:
             words = len(text.split())
             chars = len(text)
             self.word_count_label.setText(f"{words} words, {chars} characters")
+            # Enable rewrite and download buttons when we have text
+            self.rewrite_btn.setEnabled(True)
+            self.download_btn.setEnabled(True)
         else:
             self.word_count_label.setText("")
+            # Disable rewrite and download buttons when no text
+            self.rewrite_btn.setEnabled(False)
+            self.download_btn.setEnabled(False)
 
     def on_tab_changed(self, index: int):
         """Handle tab change - refresh data in the selected tab."""
@@ -1942,6 +2058,206 @@ class MainWindow(QMainWindow):
             self.status_label.setStyleSheet("color: #28a745;")
             QTimer.singleShot(2000, lambda: self.status_label.setText("Ready"))
             QTimer.singleShot(2000, lambda: self.status_label.setStyleSheet("color: #666;"))
+
+    def rewrite_transcript(self):
+        """Rewrite the transcript with user instructions."""
+        text = self.text_output.toPlainText()
+        if not text:
+            return
+
+        # Show dialog to get rewrite instructions
+        dialog = RewriteDialog(self)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+
+        instruction = dialog.get_instruction()
+        if not instruction:
+            QMessageBox.warning(
+                self,
+                "No Instruction",
+                "Please enter instructions for how to rewrite the text.",
+            )
+            return
+
+        # Get API key for selected provider
+        provider = self.config.selected_provider
+        if provider == "openrouter":
+            api_key = self.config.openrouter_api_key
+            model = self.config.openrouter_model
+        elif provider == "gemini":
+            api_key = self.config.gemini_api_key
+            model = self.config.gemini_model
+        elif provider == "openai":
+            api_key = self.config.openai_api_key
+            model = self.config.openai_model
+        else:
+            api_key = self.config.mistral_api_key
+            model = self.config.mistral_model
+
+        if not api_key:
+            QMessageBox.warning(
+                self,
+                "Missing API Key",
+                f"Please set your {provider.title()} API key in Settings.",
+            )
+            return
+
+        # Disable UI during rewrite
+        self.rewrite_btn.setEnabled(False)
+        self.download_btn.setEnabled(False)
+        self.status_label.setText("Rewriting...")
+        self.status_label.setStyleSheet("color: #007bff; font-weight: bold;")
+
+        # Start rewrite worker
+        self.rewrite_worker = RewriteWorker(
+            text,
+            instruction,
+            provider,
+            api_key,
+            model,
+        )
+        self.rewrite_worker.finished.connect(self.on_rewrite_complete)
+        self.rewrite_worker.error.connect(self.on_rewrite_error)
+        self.rewrite_worker.status.connect(self.on_worker_status)
+        self.rewrite_worker.start()
+
+    def on_rewrite_complete(self, result: TranscriptionResult):
+        """Handle completed rewrite."""
+        # Replace text with rewritten version
+        self.text_output.setMarkdown(result.text)
+
+        # Update cost tracking
+        provider = self.config.selected_provider
+        if provider == "openrouter":
+            model = self.config.openrouter_model
+        elif provider == "gemini":
+            model = self.config.gemini_model
+        elif provider == "openai":
+            model = self.config.openai_model
+        else:
+            model = self.config.mistral_model
+
+        # Determine cost
+        final_cost = 0.0
+        if result.actual_cost is not None:
+            final_cost = result.actual_cost
+        elif result.input_tokens > 0 or result.output_tokens > 0:
+            tracker = get_tracker()
+            final_cost = tracker.record_usage(provider, model, result.input_tokens, result.output_tokens)
+
+        self._update_cost_display()
+
+        # Get inference time from worker
+        inference_time_ms = self.rewrite_worker.inference_time_ms if self.rewrite_worker else 0
+
+        # Save to database
+        db = get_db()
+        db.save_transcription(
+            provider=provider,
+            model=model,
+            transcript_text=result.text,
+            audio_duration_seconds=None,  # No audio for rewrite
+            inference_time_ms=inference_time_ms,
+            input_tokens=result.input_tokens,
+            output_tokens=result.output_tokens,
+            estimated_cost=final_cost,
+            audio_file_path=None,
+            vad_audio_duration_seconds=None,
+            prompt_text_length=len(self.rewrite_worker.instruction) if self.rewrite_worker else 0,
+        )
+
+        # Re-enable buttons
+        self.rewrite_btn.setEnabled(True)
+        self.download_btn.setEnabled(True)
+        self.status_label.setText("Rewrite complete!")
+        self.status_label.setStyleSheet("color: #28a745; font-weight: bold;")
+        QTimer.singleShot(2000, lambda: self.status_label.setText("Ready"))
+        QTimer.singleShot(2000, lambda: self.status_label.setStyleSheet("color: #666;"))
+
+    def on_rewrite_error(self, error: str):
+        """Handle rewrite error."""
+        QMessageBox.critical(self, "Rewrite Error", error)
+        self.rewrite_btn.setEnabled(True)
+        self.download_btn.setEnabled(True)
+        self.status_label.setText("Ready")
+        self.status_label.setStyleSheet("color: #666;")
+
+    def download_transcript(self):
+        """Download transcript with AI-generated title."""
+        text = self.text_output.toPlainText()
+        if not text:
+            return
+
+        # Get API key for Gemini (always use Gemini for title generation)
+        api_key = self.config.gemini_api_key
+        if not api_key:
+            # Fallback: use manual filename if no Gemini key
+            from datetime import datetime
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"transcript_{timestamp}.md"
+            self._save_transcript_to_file(filename, text)
+            return
+
+        # Disable button during title generation
+        self.download_btn.setEnabled(False)
+        self.status_label.setText("Generating title...")
+        self.status_label.setStyleSheet("color: #007bff; font-weight: bold;")
+
+        # Start title generation worker
+        self.title_worker = TitleGeneratorWorker(
+            text,
+            "gemini",
+            api_key,
+            "gemini-2.0-flash-lite",  # Use fast, cheap model for titles
+        )
+        self.title_worker.finished.connect(self.on_title_generated)
+        self.title_worker.error.connect(self.on_title_error)
+        self.title_worker.start()
+
+    def on_title_generated(self, title: str):
+        """Handle generated title and download file."""
+        text = self.text_output.toPlainText()
+        filename = f"{title}.md"
+        self._save_transcript_to_file(filename, text)
+
+        # Re-enable button
+        self.download_btn.setEnabled(True)
+        self.status_label.setText("Downloaded!")
+        self.status_label.setStyleSheet("color: #28a745; font-weight: bold;")
+        QTimer.singleShot(2000, lambda: self.status_label.setText("Ready"))
+        QTimer.singleShot(2000, lambda: self.status_label.setStyleSheet("color: #666;"))
+
+    def on_title_error(self, error: str):
+        """Handle title generation error - fall back to timestamp."""
+        from datetime import datetime
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        text = self.text_output.toPlainText()
+        filename = f"transcript_{timestamp}.md"
+        self._save_transcript_to_file(filename, text)
+
+        # Re-enable button
+        self.download_btn.setEnabled(True)
+        self.status_label.setText("Downloaded (timestamp)")
+        self.status_label.setStyleSheet("color: #28a745; font-weight: bold;")
+        QTimer.singleShot(2000, lambda: self.status_label.setText("Ready"))
+        QTimer.singleShot(2000, lambda: self.status_label.setStyleSheet("color: #666;"))
+
+    def _save_transcript_to_file(self, filename: str, text: str):
+        """Save transcript to Downloads folder with given filename."""
+        from pathlib import Path
+        import os
+
+        # Get Downloads folder
+        downloads_dir = Path.home() / "Downloads"
+        file_path = downloads_dir / filename
+
+        # Save file
+        try:
+            with open(file_path, 'w', encoding='utf-8') as f:
+                f.write(text)
+            print(f"Saved to: {file_path}")
+        except Exception as e:
+            QMessageBox.critical(self, "Download Error", f"Failed to save file: {e}")
 
     def show_settings(self):
         """Show settings tab."""
