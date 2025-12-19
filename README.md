@@ -43,6 +43,8 @@ The Cost tab monitors API spend, with OpenRouter showing actual key-specific cos
 
 Cleanup prompts are customizable with format presets for email, todo lists, meeting notes, blog posts, and documentation. Audio archival saves recordings in Opus format at about 24kbps.
 
+**Email Personalization** allows you to configure separate business and personal email addresses with custom signatures (Settings → Personalization). When generating emails, the app automatically injects the appropriate signature via prompt injection, eliminating manual signature entry and ensuring consistent professional formatting.
+
 See [docs/](docs/) for detailed documentation.
 
 ## Screenshots

@@ -293,7 +293,13 @@ class PersonalizationWidget(QWidget):
         self._init_ui()
 
     def _init_ui(self):
-        layout = QVBoxLayout(self)
+        # Create scrollable area
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+
+        container = QWidget()
+        layout = QVBoxLayout(container)
         layout.setSpacing(16)
         layout.setContentsMargins(16, 16, 16, 16)
 
@@ -302,7 +308,7 @@ class PersonalizationWidget(QWidget):
         title.setFont(QFont("Sans", 14, QFont.Weight.Bold))
         layout.addWidget(title)
 
-        desc = QLabel("Customize how the AI addresses you in transcriptions.")
+        desc = QLabel("Customize your email signatures for business and personal communications.")
         desc.setWordWrap(True)
         desc.setStyleSheet("color: #666; margin-bottom: 12px;")
         layout.addWidget(desc)
@@ -319,22 +325,59 @@ class PersonalizationWidget(QWidget):
         self.name_edit.textChanged.connect(lambda: self._save_str("user_name", self.name_edit.text()))
         form.addRow("Name:", self.name_edit)
 
-        # Email
-        self.email_edit = QLineEdit()
-        self.email_edit.setText(self.config.user_email)
-        self.email_edit.setPlaceholderText("your.email@example.com")
-        self.email_edit.textChanged.connect(lambda: self._save_str("user_email", self.email_edit.text()))
-        form.addRow("Email:", self.email_edit)
-
-        # Sign-off
-        self.signoff_edit = QLineEdit()
-        self.signoff_edit.setText(self.config.email_signature)
-        self.signoff_edit.setPlaceholderText("Best regards")
-        self.signoff_edit.textChanged.connect(lambda: self._save_str("email_signature", self.signoff_edit.text()))
-        form.addRow("Email Sign-off:", self.signoff_edit)
-
         layout.addLayout(form)
+
+        # Business Email Section
+        business_group = QGroupBox("Business Email")
+        business_layout = QFormLayout(business_group)
+        business_layout.setSpacing(12)
+
+        self.business_email_edit = QLineEdit()
+        self.business_email_edit.setText(self.config.business_email)
+        self.business_email_edit.setPlaceholderText("work@company.com")
+        self.business_email_edit.textChanged.connect(lambda: self._save_str("business_email", self.business_email_edit.text()))
+        business_layout.addRow("Email Address:", self.business_email_edit)
+
+        business_sig_label = QLabel("Signature:")
+        business_sig_label.setAlignment(Qt.AlignmentFlag.AlignTop)
+        self.business_signature_edit = QTextEdit()
+        self.business_signature_edit.setPlainText(self.config.business_signature)
+        self.business_signature_edit.setPlaceholderText("Best regards,\nJohn Doe\nSenior Engineer\nCompany Inc.\nwork@company.com\n+1-555-0100")
+        self.business_signature_edit.setMaximumHeight(120)
+        self.business_signature_edit.textChanged.connect(lambda: self._save_str("business_signature", self.business_signature_edit.toPlainText()))
+        business_layout.addRow(business_sig_label, self.business_signature_edit)
+
+        layout.addWidget(business_group)
+
+        # Personal Email Section
+        personal_group = QGroupBox("Personal Email")
+        personal_layout = QFormLayout(personal_group)
+        personal_layout.setSpacing(12)
+
+        self.personal_email_edit = QLineEdit()
+        self.personal_email_edit.setText(self.config.personal_email)
+        self.personal_email_edit.setPlaceholderText("personal@example.com")
+        self.personal_email_edit.textChanged.connect(lambda: self._save_str("personal_email", self.personal_email_edit.text()))
+        personal_layout.addRow("Email Address:", self.personal_email_edit)
+
+        personal_sig_label = QLabel("Signature:")
+        personal_sig_label.setAlignment(Qt.AlignmentFlag.AlignTop)
+        self.personal_signature_edit = QTextEdit()
+        self.personal_signature_edit.setPlainText(self.config.personal_signature)
+        self.personal_signature_edit.setPlaceholderText("Cheers,\nJohn")
+        self.personal_signature_edit.setMaximumHeight(120)
+        self.personal_signature_edit.textChanged.connect(lambda: self._save_str("personal_signature", self.personal_signature_edit.toPlainText()))
+        personal_layout.addRow(personal_sig_label, self.personal_signature_edit)
+
+        layout.addWidget(personal_group)
+
         layout.addStretch()
+
+        scroll.setWidget(container)
+
+        main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.addWidget(scroll)
 
     def _save_str(self, key: str, value: str):
         """Save string config value."""

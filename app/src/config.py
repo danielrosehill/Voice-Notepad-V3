@@ -153,9 +153,19 @@ class Config:
 
     # User profile settings (used when format_preset == "email" or similar)
     user_name: str = ""
-    user_email: str = ""
     user_phone: str = ""
-    email_signature: str = "Best regards"
+
+    # Business email settings
+    business_email: str = ""
+    business_signature: str = ""
+
+    # Personal email settings
+    personal_email: str = ""
+    personal_signature: str = ""
+
+    # Legacy fields (kept for backward compatibility)
+    user_email: str = ""  # Migrated to business_email or personal_email
+    email_signature: str = "Best regards"  # Migrated to business/personal signatures
 
     # NEW: Prompt library system
     output_format: str = "markdown"  # text, markdown, html, json, xml, yaml
@@ -184,6 +194,16 @@ def load_config() -> Config:
                 # Only migrate non-default values (not "pulse" or "default")
                 if config.selected_microphone not in ("pulse", "default"):
                     config.preferred_mic_name = config.selected_microphone
+
+            # Migration: move user_email to business_email if business_email is empty
+            if config.user_email and not config.business_email:
+                config.business_email = config.user_email
+
+            # Migration: move email_signature to business_signature if business_signature is empty
+            # and email_signature is not the default value
+            if config.email_signature and not config.business_signature:
+                if config.email_signature != "Best regards":
+                    config.business_signature = config.email_signature
 
             return config
         except (json.JSONDecodeError, TypeError) as e:
@@ -615,20 +635,27 @@ def build_cleanup_prompt(config: Config, use_prompt_library: bool = False) -> st
 
     # User-specific parameters (e.g., email signature)
     if config.format_preset == "email":
-        if config.user_name or config.user_email or config.user_phone:
+        # Use business email/signature by default, fall back to personal, then legacy fields
+        sender_email = config.business_email or config.personal_email or config.user_email
+        sender_signature = config.business_signature or config.personal_signature
+
+        if config.user_name or sender_email or config.user_phone:
             lines.append("\n## User Profile")
             profile_parts = []
             if config.user_name:
                 profile_parts.append(f"Name: {config.user_name}")
-            if config.user_email:
-                profile_parts.append(f"Email: {config.user_email}")
+            if sender_email:
+                profile_parts.append(f"Email: {sender_email}")
             if config.user_phone:
                 profile_parts.append(f"Phone: {config.user_phone}")
 
             profile_info = ", ".join(profile_parts)
             lines.append(f"- Draft the email from the following person: {profile_info}")
 
-        if config.user_name:
+        if sender_signature:
+            lines.append(f"- End the email with the following signature:\n\n{sender_signature}")
+        elif config.user_name:
+            # Fallback to simple sign-off if no signature configured
             sign_off = config.email_signature or "Best regards"
             lines.append(f"- End the email with the sign-off: \"{sign_off},\" followed by the sender's name: \"{config.user_name}\"")
 
@@ -738,20 +765,27 @@ def _build_prompt_from_library(config: Config) -> str:
 
     # User-specific parameters (e.g., email signature)
     if config.format_preset == "email":
-        if config.user_name or config.user_email or config.user_phone:
+        # Use business email/signature by default, fall back to personal, then legacy fields
+        sender_email = config.business_email or config.personal_email or config.user_email
+        sender_signature = config.business_signature or config.personal_signature
+
+        if config.user_name or sender_email or config.user_phone:
             lines.append("\n## User Profile")
             profile_parts = []
             if config.user_name:
                 profile_parts.append(f"Name: {config.user_name}")
-            if config.user_email:
-                profile_parts.append(f"Email: {config.user_email}")
+            if sender_email:
+                profile_parts.append(f"Email: {sender_email}")
             if config.user_phone:
                 profile_parts.append(f"Phone: {config.user_phone}")
 
             profile_info = ", ".join(profile_parts)
             lines.append(f"- Draft the email from the following person: {profile_info}")
 
-        if config.user_name:
+        if sender_signature:
+            lines.append(f"- End the email with the following signature:\n\n{sender_signature}")
+        elif config.user_name:
+            # Fallback to simple sign-off if no signature configured
             sign_off = config.email_signature or "Best regards"
             lines.append(f"- End the email with the sign-off: \"{sign_off},\" followed by the sender's name: \"{config.user_name}\"")
 

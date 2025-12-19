@@ -138,6 +138,24 @@ The cleanup prompt is fully customizable via checkboxes in Settings → Prompt. 
 
 The prompt is built dynamically from selected options, along with format preset (email, todo, meeting notes, etc.), formality level (casual, neutral, professional), and verbosity reduction settings.
 
+### Email Personalization
+
+Voice Notepad supports **multiple email addresses and signatures** for different contexts via Settings → Personalization:
+
+- **Business Email**: Professional email address and signature for work communications
+- **Personal Email**: Personal email address and signature for casual communications
+- **User Name**: Your name (used in both business and personal contexts)
+
+When generating content with the "Email" format preset, the app automatically injects the appropriate signature using **prompt injection**. The system prioritizes business email/signature by default, then falls back to personal email/signature if business fields are empty.
+
+**How it works:**
+1. Configure your business and/or personal email settings in Settings → Personalization
+2. Select "Email" as the format preset when transcribing
+3. The AI model receives the signature information via system prompt
+4. Generated emails automatically include your configured signature
+
+This feature eliminates the need to manually add signatures to dictated emails, and ensures consistent professional formatting across all email transcriptions.
+
 ### Audio Processing Pipeline
 
 Audio goes through a multi-stage pipeline before transcription:
