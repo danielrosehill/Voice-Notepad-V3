@@ -17,6 +17,7 @@ GEMINI_MODELS = [
     ("gemini-2.5-flash", "Gemini 2.5 Flash"),
     ("gemini-2.5-flash-lite", "Gemini 2.5 Flash Lite (Budget)"),
     ("gemini-2.5-pro", "Gemini 2.5 Pro"),
+    ("gemini-3-flash-preview", "Gemini 3 Flash (Preview)"),
 ]
 
 OPENAI_MODELS = [
@@ -37,6 +38,7 @@ OPENROUTER_MODELS = [
     ("google/gemini-2.5-flash-lite", "Gemini 2.5 Flash Lite (Budget)"),
     ("google/gemini-2.0-flash-001", "Gemini 2.0 Flash"),
     ("google/gemini-2.0-flash-lite-001", "Gemini 2.0 Flash Lite (Budget)"),
+    ("google/gemini-3-flash-preview", "Gemini 3 Flash (Preview)"),
     ("openai/gpt-4o-audio-preview", "GPT-4o Audio Preview"),
     ("mistralai/voxtral-small-24b-2507", "Voxtral Small 24B"),
 ]

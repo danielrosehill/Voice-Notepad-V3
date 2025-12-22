@@ -19,6 +19,7 @@ MODEL_PRICING = {
     "gemini-2.5-flash": {"input": 0.075, "output": 0.30},
     "gemini-2.5-flash-lite": {"input": 0.02, "output": 0.10},
     "gemini-2.5-pro": {"input": 1.25, "output": 5.00},
+    "gemini-3-flash-preview": {"input": 0.10, "output": 0.40},  # Preview pricing estimate
 
     # OpenAI audio models - audio tokens have specific pricing
     # GPT-4o audio: $100/M audio input tokens, $200/M audio output tokens
