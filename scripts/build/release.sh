@@ -70,6 +70,10 @@ echo ""
 sed -i "s/^version = \".*\"/version = \"$NEW_VERSION\"/" pyproject.toml
 echo "Updated pyproject.toml"
 
+# Update fallback version in about_widget.py
+sed -i "s/^_FALLBACK_VERSION = \".*\"/_FALLBACK_VERSION = \"$NEW_VERSION\"/" app/src/about_widget.py
+echo "Updated about_widget.py"
+
 echo ""
 echo "=== Building Packages ==="
 

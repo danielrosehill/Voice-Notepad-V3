@@ -12,9 +12,30 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFont, QPixmap
 from pathlib import Path
+import re
 
-# Application version
-VERSION = "1.3.1"
+# Fallback version (updated by release.sh)
+_FALLBACK_VERSION = "1.7.5"
+
+
+def get_version() -> str:
+    """Get version from pyproject.toml (dev) or fallback (installed)."""
+    # Try to find pyproject.toml (development mode)
+    src_dir = Path(__file__).parent
+    for parent in [src_dir.parent, src_dir.parent.parent]:
+        pyproject = parent / "pyproject.toml"
+        if pyproject.exists():
+            try:
+                content = pyproject.read_text()
+                match = re.search(r'^version\s*=\s*"([^"]+)"', content, re.MULTILINE)
+                if match:
+                    return match.group(1)
+            except Exception:
+                pass
+    return _FALLBACK_VERSION
+
+
+VERSION = get_version()
 
 
 class AboutWidget(QWidget):

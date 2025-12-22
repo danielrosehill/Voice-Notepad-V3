@@ -14,8 +14,8 @@ PROJECT_ROOT="$SCRIPT_DIR/../.."
 cd "$PROJECT_ROOT"
 
 # Parse arguments
-VERSION="1.0.0"
 FAST_MODE=false
+VERSION_ARG=""
 
 for arg in "$@"; do
     case $arg in
@@ -23,10 +23,24 @@ for arg in "$@"; do
             FAST_MODE=true
             ;;
         *)
-            VERSION="$arg"
+            VERSION_ARG="$arg"
             ;;
     esac
 done
+
+# Get version: use argument if provided, otherwise read from pyproject.toml
+if [ -n "$VERSION_ARG" ]; then
+    VERSION="$VERSION_ARG"
+elif [ -f "$PROJECT_ROOT/pyproject.toml" ]; then
+    VERSION=$(grep -Po '(?<=^version = ")[^"]+' "$PROJECT_ROOT/pyproject.toml")
+    if [ -z "$VERSION" ]; then
+        echo "Error: Could not extract version from pyproject.toml"
+        exit 1
+    fi
+else
+    echo "Error: No version specified and pyproject.toml not found"
+    exit 1
+fi
 
 PACKAGE_NAME="voice-notepad"
 ARCH="amd64"
