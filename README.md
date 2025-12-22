@@ -1,4 +1,4 @@
-# Voice Notepad
+# Voice Notepad - AI Multimodal Based Text Transcription/Dictaiton App (Linux Desktop)
 
 ![alt text](screenshots/manual/3.png)
 
