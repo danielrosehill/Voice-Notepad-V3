@@ -2,8 +2,6 @@
 
 ![alt text](screenshots/manual/3.png)
 
-![Voice Notepad Screenshot](screenshots/manual/2.png)
-
 ![Vibe Coding Disclosure](graphics/vibe-coding-disclosure.png)
 
 
