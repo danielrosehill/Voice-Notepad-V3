@@ -68,15 +68,19 @@ The app supports global hotkeys that work system-wide, even when the window is m
 
 | Key | Action | Description |
 |-----|--------|-------------|
-| **F15** | Toggle Recording | Start recording, or stop and cache audio. Audio is cached for append mode. |
-| **F16** | Tap | Same as F15 (toggle recording). |
+| **F15** | Simple Toggle | Start recording, or stop and **transcribe immediately**. |
+| **F16** | Tap Toggle | Start recording, or stop and cache audio (for append mode). |
 | **F17** | Transcribe Only | Transcribe cached audio without starting a new recording. If currently recording, stops and transcribes. |
 | **F18** | Clear/Delete | Delete current recording and clear all cached audio. |
 | **F19** | Append | Start a new recording that will be appended to the cached audio. |
 
-**How it Works:**
+**Simple Workflow (F15 only):**
 1. Press **F15** to start recording
-2. Press **F15** again to stop and cache (audio is held in memory)
+2. Press **F15** again to stop and transcribe
+
+**Append Workflow (F16/F17/F19):**
+1. Press **F16** to start recording
+2. Press **F16** again to stop and cache (audio is held in memory)
 3. Press **F19** to record another segment (appends to cache)
 4. Press **F17** to transcribe all cached segments together
 5. Press **F18** to clear cache and start over
@@ -85,8 +89,9 @@ The app supports global hotkeys that work system-wide, even when the window is m
 
 **Technical Details:**
 - Hotkeys work system-wide (even when app is minimized or unfocused)
-- On Wayland, hotkeys work via XWayland compatibility layer
-- F15-F19 are detected via X11 keysyms (65482-65486)
+- On Wayland, hotkeys work via evdev (reads directly from input-remapper devices)
+- Requires user to be in the 'input' group for evdev access
+- Falls back to pynput/X11 on non-Linux systems
 - Compatible with keyboards that have macro/function keys beyond F12
 
 ### Supported AI Providers

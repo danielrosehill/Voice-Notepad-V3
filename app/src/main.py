@@ -61,7 +61,7 @@ from .markdown_widget import MarkdownTextWidget
 from .database_mongo import get_db, AUDIO_ARCHIVE_DIR
 from .vad_processor import remove_silence, is_vad_available
 from .hotkeys import (
-    GlobalHotkeyListener,
+    create_hotkey_listener,
     HotkeyCapture,
     SUGGESTED_HOTKEYS,
     HOTKEY_DESCRIPTIONS,
@@ -987,7 +987,7 @@ class MainWindow(QMainWindow):
 
     def setup_global_hotkeys(self):
         """Set up global hotkeys that work even when app is not focused."""
-        self.hotkey_listener = GlobalHotkeyListener()
+        self.hotkey_listener = create_hotkey_listener()
 
         # Register configured hotkeys
         self._register_hotkeys()
@@ -998,9 +998,9 @@ class MainWindow(QMainWindow):
     def _register_hotkeys(self):
         """Register fixed F-key hotkeys for all actions.
 
-        FIXED F-KEY MAPPING (simple implementation):
-        - F15: Toggle recording (start/stop and cache)
-        - F16: Tap (same as F15)
+        FIXED F-KEY MAPPING:
+        - F15: Simple toggle - Start recording / Stop and transcribe
+        - F16: Tap toggle - Start recording / Stop and cache (for append mode)
         - F17: Transcribe cached audio only
         - F18: Clear cache/delete recording
         - F19: Append (start new recording to append to cache)
@@ -1010,14 +1010,21 @@ class MainWindow(QMainWindow):
         misinterpreted as pause key presses).
         """
         # Unregister all existing hotkeys first
-        for name in ["pause_toggle", "f16_tap", "f17_transcribe", "f18_delete", "f19_append"]:
+        for name in ["pause_toggle", "f15_toggle", "f16_tap", "f17_transcribe", "f18_delete", "f19_append"]:
             self.hotkey_listener.unregister(name)
 
-        # F16: Tap (toggle recording)
+        # F15: Toggle recording (start/stop and cache)
+        self.hotkey_listener.register(
+            "f15_toggle",
+            "f15",
+            lambda: QTimer.singleShot(0, self._hotkey_toggle_recording)
+        )
+
+        # F16: Tap toggle (stop caches for append mode, unlike F15 which transcribes)
         self.hotkey_listener.register(
             "f16_tap",
             "f16",
-            lambda: QTimer.singleShot(0, self._hotkey_toggle_recording)
+            lambda: QTimer.singleShot(0, self._hotkey_tap_toggle)
         )
 
         # F17: Transcribe only (cached audio)
@@ -1042,7 +1049,14 @@ class MainWindow(QMainWindow):
         )
 
     def _hotkey_toggle_recording(self):
-        """Handle F15/F16: Toggle recording on/off (caches audio when stopped)."""
+        """Handle F15: Simple toggle - start recording, or stop and transcribe."""
+        if self.recorder.is_recording:
+            self.stop_and_transcribe()  # Stop and immediately transcribe
+        else:
+            self.toggle_recording()  # Start recording
+
+    def _hotkey_tap_toggle(self):
+        """Handle F16: Toggle recording on/off (caches audio when stopped for append mode)."""
         if self.recorder.is_recording:
             self.handle_stop_button()  # Stop and cache (enables append mode)
         else:

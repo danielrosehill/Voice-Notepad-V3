@@ -1,15 +1,29 @@
 """Global hotkey handling for Voice Notepad V3.
 
-Uses pynput for cross-platform global hotkey support.
-On Wayland, this works via XWayland compatibility layer.
+Supports two backends:
+1. evdev (Linux) - Works natively on Wayland, reads from input-remapper devices
+2. pynput (fallback) - Cross-platform, requires X11/XWayland
+
+evdev is preferred on Linux as it works globally on Wayland without needing
+X11 focus. Requires user to be in the 'input' group.
 """
 
 import logging
 import os
+import select
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
-from typing import Callable, Dict, Optional
+from typing import Callable, Dict, List, Optional
+
+# Try to import evdev (Linux only, preferred for Wayland)
+try:
+    import evdev
+    import evdev.ecodes as ecodes
+    EVDEV_AVAILABLE = True
+except ImportError:
+    EVDEV_AVAILABLE = False
+
 from pynput import keyboard
 
 # Debug logging for hotkeys (enable with VOICE_NOTEPAD_DEBUG_HOTKEYS=1)
@@ -82,6 +96,29 @@ KEY_MAP = {
 
 # Reverse mapping for display
 KEY_DISPLAY_MAP = {v: k.upper() for k, v in KEY_MAP.items()}
+
+# evdev key code mapping (Linux kernel key codes)
+# These are the KEY_* constants from linux/input-event-codes.h
+EVDEV_KEY_MAP = {
+    "f1": 59, "f2": 60, "f3": 61, "f4": 62, "f5": 63, "f6": 64,
+    "f7": 65, "f8": 66, "f9": 67, "f10": 68, "f11": 87, "f12": 88,
+    # Extended function keys (F13-F24)
+    "f13": 183, "f14": 184, "f15": 185, "f16": 186, "f17": 187,
+    "f18": 188, "f19": 189, "f20": 190, "f21": 191, "f22": 192,
+    "f23": 193, "f24": 194,
+    # Modifiers
+    "ctrl": 29, "leftctrl": 29, "rightctrl": 97,
+    "alt": 56, "leftalt": 56, "rightalt": 100,
+    "shift": 42, "leftshift": 42, "rightshift": 54,
+    "super": 125, "leftmeta": 125, "rightmeta": 126,
+    # Common keys
+    "space": 57, "enter": 28, "tab": 15, "escape": 1,
+    "backspace": 14, "delete": 111, "insert": 110,
+    "home": 102, "end": 107, "pageup": 104, "pagedown": 109,
+}
+
+# Reverse mapping for evdev
+EVDEV_KEY_DISPLAY_MAP = {v: k.upper() for k, v in EVDEV_KEY_MAP.items()}
 
 
 def parse_hotkey(hotkey_str: str) -> Optional[set]:
@@ -388,6 +425,268 @@ class HotkeyCapture:
     def _on_release(self, key):
         """Handle key release during capture."""
         self.pressed_keys.discard(key)
+
+
+class EvdevHotkeyListener:
+    """Evdev-based global hotkey listener for Linux/Wayland.
+
+    This listener reads directly from input devices via evdev, which works
+    globally on Wayland without needing X11. It specifically monitors
+    input-remapper virtual keyboard devices for hotkey events.
+
+    Requires the user to be in the 'input' group.
+    """
+
+    def __init__(self):
+        self.hotkeys: Dict[str, set] = {}  # name -> set of evdev key codes
+        self.callbacks: Dict[str, Callable] = {}  # name -> callback (on press)
+        self.release_callbacks: Dict[str, Callable] = {}  # name -> callback (on release)
+        self.pressed_keys: set = set()
+        self.active_hotkeys: set = set()
+        self._lock = threading.Lock()
+        self._running = False
+        self._thread: Optional[threading.Thread] = None
+        self._devices: List = []
+        self._last_trigger_time: Dict[str, float] = {}
+        self._executor = ThreadPoolExecutor(max_workers=MAX_CALLBACK_THREADS, thread_name_prefix="evdev-hotkey")
+
+    def _find_devices(self) -> List:
+        """Find input-remapper keyboard devices to monitor."""
+        if not EVDEV_AVAILABLE:
+            return []
+
+        devices = []
+        try:
+            for path in evdev.list_devices():
+                try:
+                    device = evdev.InputDevice(path)
+                    # Monitor input-remapper keyboard (where remapped keys appear)
+                    # and any other keyboard devices
+                    name_lower = device.name.lower()
+                    if "input-remapper" in name_lower and "keyboard" in name_lower:
+                        devices.append(device)
+                        if _debug_hotkeys:
+                            logger.debug(f"Found evdev device: {device.path} - {device.name}")
+                except (PermissionError, OSError) as e:
+                    if _debug_hotkeys:
+                        logger.debug(f"Cannot access {path}: {e}")
+        except Exception as e:
+            if _debug_hotkeys:
+                logger.debug(f"Error listing evdev devices: {e}")
+
+        return devices
+
+    def register(
+        self,
+        name: str,
+        hotkey_str: str,
+        callback: Callable,
+        release_callback: Optional[Callable] = None
+    ) -> bool:
+        """Register a hotkey with callbacks for press and optional release."""
+        if not hotkey_str or not hotkey_str.strip():
+            with self._lock:
+                self.hotkeys.pop(name, None)
+                self.callbacks.pop(name, None)
+                self.release_callbacks.pop(name, None)
+            return False
+
+        # Parse hotkey string to evdev key codes
+        parts = [p.strip().lower() for p in hotkey_str.split("+")]
+        key_codes = set()
+
+        for part in parts:
+            if part in EVDEV_KEY_MAP:
+                key_codes.add(EVDEV_KEY_MAP[part])
+            elif len(part) == 1:
+                # Single character - map to evdev key code
+                # A-Z are codes 30-44, 46-54 in evdev
+                char = part.upper()
+                if 'A' <= char <= 'Z':
+                    # Approximate mapping (not all letters are sequential)
+                    code = ord(char) - ord('A') + 30
+                    if code > 38:  # Skip some non-letter keys
+                        code += 7
+                    key_codes.add(code)
+            else:
+                if _debug_hotkeys:
+                    logger.debug(f"Unknown key in hotkey: {part}")
+                return False
+
+        if not key_codes:
+            return False
+
+        with self._lock:
+            self.hotkeys[name] = key_codes
+            self.callbacks[name] = callback
+            if release_callback:
+                self.release_callbacks[name] = release_callback
+            else:
+                self.release_callbacks.pop(name, None)
+
+        if _debug_hotkeys:
+            logger.debug(f"Registered evdev hotkey '{name}': {hotkey_str} -> codes {key_codes}")
+
+        return True
+
+    def unregister(self, name: str):
+        """Unregister a hotkey by name."""
+        with self._lock:
+            self.hotkeys.pop(name, None)
+            self.callbacks.pop(name, None)
+            self.release_callbacks.pop(name, None)
+            self.active_hotkeys.discard(name)
+
+    def start(self):
+        """Start listening for global hotkeys via evdev."""
+        if self._running:
+            if _debug_hotkeys:
+                logger.debug("Evdev listener already running")
+            return
+
+        self._devices = self._find_devices()
+        if not self._devices:
+            logger.warning("No input-remapper keyboard devices found for evdev hotkeys")
+            return
+
+        self._running = True
+        self._thread = threading.Thread(target=self._listen_loop, daemon=True)
+        self._thread.start()
+
+        if _debug_hotkeys:
+            logger.debug(f"Started evdev hotkey listener with {len(self._devices)} device(s)")
+
+    def stop(self):
+        """Stop listening for global hotkeys."""
+        self._running = False
+        if self._thread:
+            self._thread.join(timeout=1.0)
+            self._thread = None
+
+        # Close devices
+        for device in self._devices:
+            try:
+                device.close()
+            except Exception:
+                pass
+        self._devices = []
+
+        self.pressed_keys.clear()
+        self.active_hotkeys.clear()
+        self._executor.shutdown(wait=False)
+
+    def _should_debounce(self, name: str) -> bool:
+        """Check if this hotkey should be debounced."""
+        now = time.time() * 1000
+        last_time = self._last_trigger_time.get(name, 0)
+        if now - last_time < DEBOUNCE_INTERVAL_MS:
+            return True
+        self._last_trigger_time[name] = now
+        return False
+
+    def _listen_loop(self):
+        """Main loop that reads from evdev devices."""
+        while self._running:
+            try:
+                # Use select to wait for events with timeout
+                r, w, x = select.select(self._devices, [], [], 0.1)
+
+                for device in r:
+                    try:
+                        for event in device.read():
+                            if event.type == ecodes.EV_KEY:
+                                self._handle_key_event(event.code, event.value)
+                    except (OSError, IOError) as e:
+                        if _debug_hotkeys:
+                            logger.debug(f"Error reading from {device.path}: {e}")
+                        # Device might have been disconnected
+                        continue
+
+            except Exception as e:
+                if _debug_hotkeys:
+                    logger.debug(f"Error in evdev listen loop: {e}")
+                time.sleep(0.1)
+
+    def _handle_key_event(self, code: int, value: int):
+        """Handle a key event from evdev.
+
+        value: 0 = release, 1 = press, 2 = repeat
+        """
+        if _debug_hotkeys:
+            key_name = EVDEV_KEY_DISPLAY_MAP.get(code, f"CODE_{code}")
+            state = "PRESS" if value == 1 else ("RELEASE" if value == 0 else "REPEAT")
+            logger.debug(f"Evdev key: {key_name} ({code}) - {state}")
+
+        if value == 1:  # Key press
+            self.pressed_keys.add(code)
+            self._check_hotkeys_press()
+        elif value == 0:  # Key release
+            self.pressed_keys.discard(code)
+            self._check_hotkeys_release()
+
+    def _check_hotkeys_press(self):
+        """Check if any hotkey combination is now pressed."""
+        with self._lock:
+            for name, hotkey_codes in self.hotkeys.items():
+                if name not in self.active_hotkeys:
+                    if hotkey_codes and hotkey_codes.issubset(self.pressed_keys):
+                        if _debug_hotkeys:
+                            logger.debug(f"Evdev hotkey matched: {name}")
+                        self.active_hotkeys.add(name)
+                        callback = self.callbacks.get(name)
+                        if callback and not self._should_debounce(name):
+                            if _debug_hotkeys:
+                                logger.debug(f"Executing evdev callback for {name}")
+                            try:
+                                self._executor.submit(callback)
+                            except RuntimeError:
+                                pass
+
+    def _check_hotkeys_release(self):
+        """Check if any active hotkey is no longer pressed."""
+        with self._lock:
+            released = []
+            for name in list(self.active_hotkeys):
+                hotkey_codes = self.hotkeys.get(name, set())
+                if hotkey_codes and not hotkey_codes.issubset(self.pressed_keys):
+                    released.append(name)
+
+            for name in released:
+                self.active_hotkeys.discard(name)
+                release_callback = self.release_callbacks.get(name)
+                if release_callback:
+                    try:
+                        self._executor.submit(release_callback)
+                    except RuntimeError:
+                        pass
+
+
+def create_hotkey_listener():
+    """Create the best available hotkey listener for this platform.
+
+    Returns EvdevHotkeyListener on Linux if evdev is available and devices
+    are accessible, otherwise returns GlobalHotkeyListener (pynput-based).
+    """
+    if EVDEV_AVAILABLE:
+        listener = EvdevHotkeyListener()
+        devices = listener._find_devices()
+        if devices:
+            if _debug_hotkeys:
+                logger.debug(f"Using evdev hotkey listener ({len(devices)} device(s))")
+            # Close the test devices
+            for d in devices:
+                try:
+                    d.close()
+                except Exception:
+                    pass
+            return EvdevHotkeyListener()  # Return fresh instance
+        else:
+            if _debug_hotkeys:
+                logger.debug("No evdev devices found, falling back to pynput")
+
+    if _debug_hotkeys:
+        logger.debug("Using pynput hotkey listener")
+    return GlobalHotkeyListener()
 
 
 # Suggested hotkeys for users with macro keys
