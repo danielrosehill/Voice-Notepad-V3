@@ -438,6 +438,18 @@ FORMAT_TEMPLATES = {
         "category": "foundational",
         "description": "Minimal transformation - closest to verbatim transcription",
     },
+    "brief": {
+        "instruction": "Be as brief as possible. Condense the content to its essential core message with maximum conciseness.",
+        "adherence": "Ruthlessly cut unnecessary words, qualifiers, and redundant phrases. Prefer short sentences. Eliminate preamble and filler. Every word must earn its place. Aim for the minimum viable length while preserving meaning.",
+        "category": "foundational",
+        "description": "Maximum conciseness - as brief as possible",
+    },
+    "quick_note": {
+        "instruction": "Format as a quick personal note. Minimal formatting, just capture the thought clearly.",
+        "adherence": "Keep it informal and quick. No headers, no elaborate structure. Just the thought, clearly expressed. Suitable for jotting down ideas or reminders.",
+        "category": "foundational",
+        "description": "Quick personal note - minimal formatting",
+    },
 
     # ==========================================================================
     # STYLISTIC - Writing styles and formats
@@ -478,6 +490,18 @@ FORMAT_TEMPLATES = {
         "category": "stylistic",
         "description": "Email newsletter content",
     },
+    "persuasive": {
+        "instruction": "Write with persuasive language designed to convince or influence the reader. Use rhetorical techniques, emotional appeals, and compelling arguments.",
+        "adherence": "Employ persuasive techniques: strong opening hook, clear value proposition, social proof if available, address potential objections, use active voice, include call-to-action. Balance logic with emotional appeal. Be assertive but not pushy.",
+        "category": "stylistic",
+        "description": "Persuasive writing to convince or influence",
+    },
+    "slack_message": {
+        "instruction": "Format as a workplace chat message (Slack/Teams style). Keep it conversational, direct, and appropriately informal for workplace communication.",
+        "adherence": "Be concise and scannable. Use line breaks for readability. Emoji are okay if tone suits. Get to the point quickly. Can use bullet points for multiple items. Maintain professional-casual balance.",
+        "category": "stylistic",
+        "description": "Workplace chat message (Slack/Teams)",
+    },
 
     # ==========================================================================
     # PROMPTS - AI prompt formats
@@ -495,10 +519,10 @@ FORMAT_TEMPLATES = {
         "description": "Software development instructions for AI",
     },
     "system_prompt": {
-        "instruction": "Format as a system prompt for an AI assistant. Write in third-person, defining the assistant's role, capabilities, constraints, and behavioral guidelines. Use declarative statements about what the assistant 'is' or 'does'.",
-        "adherence": "Use third-person perspective (e.g., 'You are...', 'The assistant should...'). Define role clearly. Specify constraints and boundaries. Include behavioral guidelines. Be comprehensive but concise. Avoid user-facing language.",
+        "instruction": "Format as a system prompt for an AI assistant. Write in second-person, addressing the AI directly. Define its role, capabilities, constraints, and behavioral guidelines using 'You are...' and 'You should...' statements.",
+        "adherence": "Always use second-person perspective addressing the AI directly (e.g., 'You are a helpful assistant', 'You should respond concisely'). Never use third-person ('The assistant should...'). Define role clearly upfront. Specify constraints and boundaries. Include behavioral guidelines. Be comprehensive but concise.",
         "category": "prompts",
-        "description": "AI system prompt (third-person, defining behavior)",
+        "description": "AI system prompt (second-person, 'You are...' style)",
     },
     "image_generation_prompt": {
         "instruction": "Format as a detailed image generation prompt suitable for AI image generators (Stable Diffusion, DALL-E, Midjourney, etc.). Include: subject description, style/aesthetic, composition, lighting, camera angle, colors/mood, quality markers, and negative prompt suggestions if applicable.",
@@ -613,6 +637,18 @@ FORMAT_TEMPLATES = {
         "category": "work",
         "description": "Project planning document",
     },
+    "software_spec": {
+        "instruction": "Format as a software specification document with clear requirements. Include: Overview, Functional Requirements (numbered list), Non-Functional Requirements, Constraints, and Acceptance Criteria if mentioned.",
+        "adherence": "Use precise, unambiguous language. Number all requirements for reference (REQ-001, REQ-002, etc. or simple numbering). Each requirement should be testable and specific. Use 'shall' for mandatory requirements, 'should' for recommendations. Group related requirements under clear headings.",
+        "category": "work",
+        "description": "Software requirements specification",
+    },
+    "status_update": {
+        "instruction": "Format as a brief status update or progress report. Include: what was accomplished, current status, any blockers or issues, and next steps.",
+        "adherence": "Be concise and factual. Use bullet points for quick scanning. Highlight blockers or issues that need attention. Keep to essential information only. Suitable for standup updates or quick progress reports.",
+        "category": "work",
+        "description": "Brief status or progress update",
+    },
 
     # ==========================================================================
     # CREATIVE - Creative writing and social media
@@ -622,6 +658,12 @@ FORMAT_TEMPLATES = {
         "adherence": "Respect platform character limits if specified. Use emoji strategically if mentioned. Structure for scanability. Include call-to-action if present.",
         "category": "creative",
         "description": "Social media post (Twitter, LinkedIn, etc.)",
+    },
+    "community_post": {
+        "instruction": "Format as an online community post (Reddit, forums, Discord, etc.). Start with a brief friendly intro or context, use short paragraphs for readability, and maintain an approachable conversational tone.",
+        "adherence": "Start with context or a brief 'Hi' intro if appropriate. Use short paragraphs (2-3 sentences max). Add line breaks between paragraphs for readability. Be genuine and conversational. Include a clear question or discussion point if asking for help. End with thanks if requesting assistance.",
+        "category": "creative",
+        "description": "Community/forum post (Reddit, Discord, etc.)",
     },
     "story_notes": {
         "instruction": "Format as creative writing notes. Capture character ideas, plot points, settings, and any narrative elements mentioned.",
@@ -661,24 +703,34 @@ FORMAT_TEMPLATES = {
 
 # Display names for format presets (for UI)
 FORMAT_DISPLAY_NAMES = {
+    # Foundational
     "general": "General",
     "verbatim": "Verbatim",
+    "brief": "Brief",
+    "quick_note": "Quick Note",
+    # Stylistic
     "email": "Email",
     "meeting_notes": "Meeting Notes",
     "bullet_points": "Bullet Points",
     "internal_memo": "Internal Memo",
     "press_release": "Press Release",
     "newsletter": "Newsletter",
+    "persuasive": "Persuasive",
+    "slack_message": "Slack Message",
+    # Prompts
     "ai_prompt": "AI Prompt",
     "dev_prompt": "Development Prompt",
     "system_prompt": "System Prompt",
     "image_generation_prompt": "Image Generation Prompt",
+    # To-Do Lists
     "todo": "To-Do",
     "shopping_list": "Shopping List",
     "grocery": "Grocery List",  # Legacy alias
+    # Blog
     "blog": "Blog Post",
     "blog_outline": "Blog Outline",
     "blog_notes": "Blog Notes",
+    # Documentation
     "documentation": "Documentation",
     "tech_docs": "Technical Documentation",
     "readme": "README",
@@ -686,10 +738,16 @@ FORMAT_DISPLAY_NAMES = {
     "api_doc": "API Documentation",
     "sop": "SOP (Standard Operating Procedure)",
     "changelog": "Changelog",
+    # Work
     "bug_report": "Bug Report",
     "project_plan": "Project Plan",
-    "social_post": "Social Media Post",
+    "software_spec": "Software Spec",
+    "status_update": "Status Update",
+    # Creative
+    "social_post": "Social Post",
+    "community_post": "Community Post",
     "story_notes": "Story Notes",
+    # Experimental
     "shakespearean": "Shakespearean Style",
     "medieval": "Medieval Style",
     "pirate_speak": "Pirate Speak",

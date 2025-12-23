@@ -438,6 +438,24 @@ DEFAULT_PROMPT_CONFIGS: List[PromptConfig] = [
         is_favorite=True,
         favorite_order=1,
     ),
+    PromptConfig(
+        id="brief",
+        name="Brief",
+        category=PromptConfigCategory.FOUNDATIONAL,
+        description="Maximum conciseness - as brief as possible",
+        instruction="Be as brief as possible. Condense the content to its essential core message with maximum conciseness.",
+        adherence="Ruthlessly cut unnecessary words, qualifiers, and redundant phrases. Prefer short sentences. Eliminate preamble and filler. Every word must earn its place. Aim for the minimum viable length while preserving meaning.",
+        is_favorite=True,
+        favorite_order=2,
+    ),
+    PromptConfig(
+        id="quick_note",
+        name="Quick Note",
+        category=PromptConfigCategory.FOUNDATIONAL,
+        description="Quick personal note - minimal formatting",
+        instruction="Format as a quick personal note. Minimal formatting, just capture the thought clearly.",
+        adherence="Keep it informal and quick. No headers, no elaborate structure. Just the thought, clearly expressed. Suitable for jotting down ideas or reminders.",
+    ),
 
     # ==========================================================================
     # STYLISTIC - Writing styles and formats (Row 2 in favorites bar)
@@ -472,6 +490,22 @@ DEFAULT_PROMPT_CONFIGS: List[PromptConfig] = [
         is_favorite=True,
         favorite_order=12,
     ),
+    PromptConfig(
+        id="persuasive",
+        name="Persuasive",
+        category=PromptConfigCategory.STYLISTIC,
+        description="Persuasive writing to convince or influence",
+        instruction="Write with persuasive language designed to convince or influence the reader. Use rhetorical techniques, emotional appeals, and compelling arguments.",
+        adherence="Employ persuasive techniques: strong opening hook, clear value proposition, social proof if available, address potential objections, use active voice, include call-to-action. Balance logic with emotional appeal. Be assertive but not pushy.",
+    ),
+    PromptConfig(
+        id="slack_message",
+        name="Slack Message",
+        category=PromptConfigCategory.STYLISTIC,
+        description="Workplace chat message (Slack/Teams)",
+        instruction="Format as a workplace chat message (Slack/Teams style). Keep it conversational, direct, and appropriately informal for workplace communication.",
+        adherence="Be concise and scannable. Use line breaks for readability. Emoji are okay if tone suits. Get to the point quickly. Can use bullet points for multiple items. Maintain professional-casual balance.",
+    ),
 
     # ==========================================================================
     # PROMPTS - AI prompt formats (Row 3 in favorites bar)
@@ -500,9 +534,9 @@ DEFAULT_PROMPT_CONFIGS: List[PromptConfig] = [
         id="system_prompt",
         name="System Prompt",
         category=PromptConfigCategory.PROMPTS,
-        description="AI system prompt / persona definition",
-        instruction="Format the output as a system prompt that defines an AI assistant's persona, capabilities, and behavioral guidelines.",
-        adherence="Use clear, directive language. Define the assistant's role, tone, and any constraints. Structure as a complete system prompt ready for use.",
+        description="AI system prompt (second-person, 'You are...' style)",
+        instruction="Format as a system prompt for an AI assistant. Write in second-person, addressing the AI directly. Define its role, capabilities, constraints, and behavioral guidelines using 'You are...' and 'You should...' statements.",
+        adherence="Always use second-person perspective addressing the AI directly (e.g., 'You are a helpful assistant', 'You should respond concisely'). Never use third-person ('The assistant should...'). Define role clearly upfront. Specify constraints and boundaries. Include behavioral guidelines. Be comprehensive but concise.",
         is_favorite=True,
         favorite_order=22,
     ),
@@ -609,6 +643,16 @@ DEFAULT_PROMPT_CONFIGS: List[PromptConfig] = [
         description="Brief project status update",
         instruction="Format as a concise status update with what was completed, what's in progress, and any blockers.",
         adherence="Keep it brief and scannable. Use bullet points. Focus on facts rather than details.",
+        is_favorite=True,
+        favorite_order=61,
+    ),
+    PromptConfig(
+        id="software_spec",
+        name="Software Spec",
+        category=PromptConfigCategory.WORK,
+        description="Software requirements specification",
+        instruction="Format as a software specification document with clear requirements. Include: Overview, Functional Requirements (numbered list), Non-Functional Requirements, Constraints, and Acceptance Criteria if mentioned.",
+        adherence="Use precise, unambiguous language. Number all requirements for reference (REQ-001, REQ-002, etc. or simple numbering). Each requirement should be testable and specific. Use 'shall' for mandatory requirements, 'should' for recommendations. Group related requirements under clear headings.",
     ),
 
     # ==========================================================================
@@ -621,6 +665,18 @@ DEFAULT_PROMPT_CONFIGS: List[PromptConfig] = [
         description="Social media post format",
         instruction="Format as a social media post. Keep it engaging, concise, and appropriate for platforms like Twitter/X or LinkedIn.",
         adherence="Optimize for engagement. Use appropriate hashtags if relevant. Keep within typical character limits.",
+        is_favorite=True,
+        favorite_order=70,
+    ),
+    PromptConfig(
+        id="community_post",
+        name="Community Post",
+        category=PromptConfigCategory.CREATIVE,
+        description="Community/forum post (Reddit, Discord, etc.)",
+        instruction="Format as an online community post (Reddit, forums, Discord, etc.). Start with a brief friendly intro or context, use short paragraphs for readability, and maintain an approachable conversational tone.",
+        adherence="Start with context or a brief 'Hi' intro if appropriate. Use short paragraphs (2-3 sentences max). Add line breaks between paragraphs for readability. Be genuine and conversational. Include a clear question or discussion point if asking for help. End with thanks if requesting assistance.",
+        is_favorite=True,
+        favorite_order=71,
     ),
     PromptConfig(
         id="story_notes",
