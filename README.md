@@ -1,6 +1,6 @@
 # AI Transcription Notepad - Multimodal Cloud API Text Transcription/Dictation App  
 
-![alt text](screenshots/v_18_1/1.png)
+![alt text](screenshots/manual/6.png)
 
 ![Vibe Coding Disclosure](graphics/vibe-coding-disclosure.png)
 

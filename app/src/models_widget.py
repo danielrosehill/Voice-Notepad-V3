@@ -106,7 +106,7 @@ class ModelsWidget(QWidget):
         container_layout.addWidget(title)
 
         intro = QLabel(
-            "AI Transcription Notepad uses Gemini models exclusively for audio transcription. "
+            "Voice Notepad uses Gemini models exclusively for audio transcription. "
             "The recommended setup is <b>Gemini Direct</b> with the <b>gemini-flash-latest</b> endpoint."
         )
         intro.setWordWrap(True)

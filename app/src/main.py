@@ -30,6 +30,7 @@ from PyQt6.QtWidgets import (
     QLabel,
     QSystemTrayIcon,
     QMenu,
+    QMenuBar,
     QDialog,
     QFormLayout,
     QLineEdit,
@@ -45,7 +46,7 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt, QThread, pyqtSignal, QTimer, QSize
 import time
-from PyQt6.QtGui import QIcon, QAction, QFont, QClipboard, QShortcut, QKeySequence
+from PyQt6.QtGui import QIcon, QAction, QFont, QClipboard, QShortcut, QKeySequence, QActionGroup
 from PyQt6.QtWidgets import QCompleter
 
 from .config import (
@@ -275,7 +276,7 @@ class MainWindow(QMainWindow):
         self.current_prompt_id = self.config.format_preset or "general"
 
         # Set window title (add DEV suffix if in dev mode)
-        title = "AI Transcription Notepad"
+        title = "Voice Notepad"
         if os.environ.get("VOICE_NOTEPAD_DEV_MODE") == "1":
             title += " (DEV)"
         self.setWindowTitle(title)
@@ -339,7 +340,7 @@ class MainWindow(QMainWindow):
         self.status_label.setText(f"⚠️ {error_msg}")
         self.status_label.setStyleSheet("color: #dc3545; font-weight: bold;")
         self.tray.showMessage(
-            "AI Transcription Notepad",
+            "Voice Notepad",
             error_msg,
             QSystemTrayIcon.MessageIcon.Warning,
             3000,
@@ -367,62 +368,45 @@ class MainWindow(QMainWindow):
 
     def setup_ui(self):
         """Set up the main UI with tabs."""
+        # Create menu bar
+        menubar = self.menuBar()
+
+        # Prompts menu
+        prompts_menu = menubar.addMenu("Prompts")
+        manage_prompts_action = QAction("Manage Prompts...", self)
+        manage_prompts_action.triggered.connect(self._open_prompt_editor)
+        prompts_menu.addAction(manage_prompts_action)
+
+        # View menu
+        view_menu = menubar.addMenu("View")
+        analytics_action = QAction("Analytics...", self)
+        analytics_action.triggered.connect(self.show_analytics)
+        view_menu.addAction(analytics_action)
+
+        # Settings menu
+        settings_menu = menubar.addMenu("Settings")
+        preferences_action = QAction("Preferences...", self)
+        preferences_action.triggered.connect(self.show_settings)
+        settings_menu.addAction(preferences_action)
+
+        # Help menu
+        help_menu = menubar.addMenu("Help")
+        about_action = QAction("About Voice Notepad...", self)
+        about_action.triggered.connect(self.show_about)
+        help_menu.addAction(about_action)
+
         central = QWidget()
         self.setCentralWidget(central)
         main_layout = QVBoxLayout(central)
         main_layout.setSpacing(8)
-        main_layout.setContentsMargins(12, 12, 12, 12)
+        main_layout.setContentsMargins(12, 8, 12, 12)
 
-        # Header with settings and other dialogs
-        header = QHBoxLayout()
-        header.addStretch()
-
-        prompts_btn = QPushButton("Prompts")
-        prompts_btn.clicked.connect(self._open_prompt_editor)
-        header.addWidget(prompts_btn)
-
-        analytics_btn = QPushButton("Analytics")
-        analytics_btn.clicked.connect(self.show_analytics)
-        header.addWidget(analytics_btn)
-
-        settings_btn = QPushButton("Settings")
-        settings_btn.clicked.connect(self.show_settings)
-        header.addWidget(settings_btn)
-
-        about_btn = QPushButton("About")
-        about_btn.clicked.connect(self.show_about)
-        header.addWidget(about_btn)
-
-        main_layout.addLayout(header)
-
-        # Persistent control bar (visible across all tabs)
+        # Recording controls (centered)
         control_bar = QHBoxLayout()
         control_bar.setSpacing(8)
-
-        # Status section (left side)
-        self.status_label = QLabel("● Ready")
-        self.status_label.setStyleSheet("""
-            QLabel {
-                color: #6c757d;
-                font-weight: bold;
-                font-size: 13px;
-                padding: 0 8px;
-            }
-        """)
-        control_bar.addWidget(self.status_label)
-
-        self.duration_label = QLabel("0:00")
-        self.duration_label.setFont(QFont("Monospace", 12))
-        self.duration_label.setStyleSheet("padding: 0 4px;")
-        control_bar.addWidget(self.duration_label)
-
-        self.segment_label = QLabel("")
-        self.segment_label.setStyleSheet("color: #17a2b8; font-weight: bold; padding: 0 4px;")
-        control_bar.addWidget(self.segment_label)
-
         control_bar.addStretch()
 
-        # Recording controls (right side) - using icons for compact display
+        # Recording controls - using icons for compact display
         self.record_btn = QPushButton("●")  # Record icon
         self.record_btn.setMinimumHeight(36)
         self.record_btn.setMinimumWidth(44)
@@ -647,7 +631,34 @@ class MainWindow(QMainWindow):
         self.delete_btn.clicked.connect(self.delete_recording)
         control_bar.addWidget(self.delete_btn)
 
+        control_bar.addStretch()  # Balance the stretch to center controls
         main_layout.addLayout(control_bar)
+
+        # Status line (centered below controls)
+        status_bar = QHBoxLayout()
+        status_bar.setSpacing(8)
+        status_bar.addStretch()
+
+        self.status_label = QLabel("Ready")
+        self.status_label.setStyleSheet("""
+            QLabel {
+                color: #6c757d;
+                font-weight: bold;
+                font-size: 13px;
+            }
+        """)
+        status_bar.addWidget(self.status_label)
+
+        self.duration_label = QLabel("0:00")
+        self.duration_label.setFont(QFont("Monospace", 12))
+        status_bar.addWidget(self.duration_label)
+
+        self.segment_label = QLabel("")
+        self.segment_label.setStyleSheet("color: #17a2b8; font-weight: bold;")
+        status_bar.addWidget(self.segment_label)
+
+        status_bar.addStretch()
+        main_layout.addLayout(status_bar)
 
         # Main tabs
         self.tabs = QTabWidget()
@@ -2335,7 +2346,7 @@ class MainWindow(QMainWindow):
         event.ignore()
         self.hide()
         self.tray.showMessage(
-            "AI Transcription Notepad",
+            "Voice Notepad",
             "Minimized to system tray. Click icon to restore.",
             QSystemTrayIcon.MessageIcon.Information,
             2000,
