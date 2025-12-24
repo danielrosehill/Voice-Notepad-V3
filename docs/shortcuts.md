@@ -2,7 +2,7 @@
 
 ## In-App Shortcuts
 
-These work when the Voice Notepad window is focused.
+These work when the AI Transcription Notepad window is focused.
 
 | Shortcut | Action |
 |----------|--------|
@@ -15,7 +15,7 @@ These work when the Voice Notepad window is focused.
 
 ## Global Hotkeys
 
-Global hotkeys work system-wide, even when Voice Notepad is minimized or unfocused.
+Global hotkeys work system-wide, even when AI Transcription Notepad is minimized or unfocused.
 
 ### Current Hotkey Mapping
 

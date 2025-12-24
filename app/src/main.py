@@ -275,7 +275,7 @@ class MainWindow(QMainWindow):
         self.current_prompt_id = self.config.format_preset or "general"
 
         # Set window title (add DEV suffix if in dev mode)
-        title = "Voice Notepad"
+        title = "AI Transcription Notepad"
         if os.environ.get("VOICE_NOTEPAD_DEV_MODE") == "1":
             title += " (DEV)"
         self.setWindowTitle(title)
@@ -339,7 +339,7 @@ class MainWindow(QMainWindow):
         self.status_label.setText(f"⚠️ {error_msg}")
         self.status_label.setStyleSheet("color: #dc3545; font-weight: bold;")
         self.tray.showMessage(
-            "Voice Notepad",
+            "AI Transcription Notepad",
             error_msg,
             QSystemTrayIcon.MessageIcon.Warning,
             3000,
@@ -2335,7 +2335,7 @@ class MainWindow(QMainWindow):
         event.ignore()
         self.hide()
         self.tray.showMessage(
-            "Voice Notepad",
+            "AI Transcription Notepad",
             "Minimized to system tray. Click icon to restore.",
             QSystemTrayIcon.MessageIcon.Information,
             2000,

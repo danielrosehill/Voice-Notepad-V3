@@ -1,6 +1,6 @@
-# Voice Notepad Documentation
+# AI Transcription Notepad Documentation
 
-Voice Notepad is a desktop application that uses multimodal AI models for single-pass transcription and cleanup. See the [README](../README.md) for an overview and quick start guide.
+AI Transcription Notepad is a desktop application that uses multimodal AI models for single-pass transcription and cleanup. See the [README](../README.md) for an overview and quick start guide.
 
 ## Getting Started
 

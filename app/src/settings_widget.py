@@ -685,6 +685,35 @@ class ModelSelectionWidget(QWidget):
 
         selection_layout.addLayout(tier_layout)
 
+        # Model explanation box
+        info_frame = QFrame()
+        info_frame.setFrameShape(QFrame.Shape.StyledPanel)
+        info_frame.setStyleSheet("""
+            QFrame {
+                background-color: #f8f9fa;
+                border: 1px solid #dee2e6;
+                border-radius: 6px;
+                padding: 8px;
+            }
+        """)
+        info_layout = QVBoxLayout(info_frame)
+        info_layout.setContentsMargins(12, 10, 12, 10)
+        info_layout.setSpacing(6)
+
+        info_text = QLabel(
+            "<b>Gemini Flash (Latest)</b> is a dynamic endpoint that points to the latest "
+            "Flash variant operated by Google.<br><br>"
+            "The <b>Budget</b> selector chooses Flash Lite for lower cost, but the regular "
+            "model is strongly recommended.<br><br>"
+            "<b>Pro</b> is also available but does not significantly improve transcript quality "
+            "in my experience."
+        )
+        info_text.setWordWrap(True)
+        info_text.setStyleSheet("color: #495057; font-size: 11px; background: transparent; border: none;")
+        info_layout.addWidget(info_text)
+
+        selection_layout.addWidget(info_frame)
+
         # Set Default button
         default_layout = QHBoxLayout()
         default_layout.addStretch()

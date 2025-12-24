@@ -1,6 +1,6 @@
 # Cost Tracking
 
-Voice Notepad tracks API usage in the Cost tab. OpenRouter provides the most accurate data because it reports actual key-specific costs from its API.
+AI Transcription Notepad tracks API usage in the Cost tab. OpenRouter provides the most accurate data because it reports actual key-specific costs from its API.
 
 ## OpenRouter
 

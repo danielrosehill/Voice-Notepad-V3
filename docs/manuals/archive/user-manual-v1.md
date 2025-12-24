@@ -1,4 +1,4 @@
-# Voice Notepad User Manual
+# AI Transcription Notepad User Manual
 
 **Version 1.3.0**
 
@@ -33,7 +33,7 @@
 
 ## Introduction
 
-Voice Notepad is a desktop application for voice recording with AI-powered transcription and cleanup. Unlike traditional speech-to-text tools that require a separate text cleanup pass, Voice Notepad uses **multimodal AI models** that can process audio directly and perform both transcription and text cleanup in a single operation.
+AI Transcription Notepad is a desktop application for voice recording with AI-powered transcription and cleanup. Unlike traditional speech-to-text tools that require a separate text cleanup pass, AI Transcription Notepad uses **multimodal AI models** that can process audio directly and perform both transcription and text cleanup in a single operation.
 
 ### Key Features
 
@@ -51,7 +51,7 @@ Voice Notepad is a desktop application for voice recording with AI-powered trans
 
 ### Download Options
 
-Voice Notepad is available in multiple formats:
+AI Transcription Notepad is available in multiple formats:
 
 | Format | Platform | Description |
 |--------|----------|-------------|
@@ -81,7 +81,7 @@ sudo apt install python3 python3-venv ffmpeg portaudio19-dev
 
 ### 1. Configure API Keys
 
-Before using Voice Notepad, you need to set up at least one API key:
+Before using AI Transcription Notepad, you need to set up at least one API key:
 
 1. Click the **Settings** button in the top-right corner
 2. Go to the **API Keys** tab
@@ -107,7 +107,7 @@ On the Record tab:
 
 ## Main Interface
 
-Voice Notepad uses a tabbed interface with seven main sections:
+AI Transcription Notepad uses a tabbed interface with seven main sections:
 
 ### Record Tab
 
@@ -319,7 +319,7 @@ Configure global hotkeys that work even when the app is minimized:
 
 ### In-App Shortcuts
 
-These work when the Voice Notepad window is focused:
+These work when the AI Transcription Notepad window is focused:
 
 | Shortcut | Action |
 |----------|--------|
@@ -390,4 +390,4 @@ These work system-wide, even when the app is minimized or unfocused. Configure t
 
 ---
 
-*Voice Notepad v1.3.0 - MIT License*
+*AI Transcription Notepad v1.3.0 - MIT License*

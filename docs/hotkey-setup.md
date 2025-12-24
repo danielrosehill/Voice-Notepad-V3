@@ -1,6 +1,6 @@
 # Hotkey Setup Guide
 
-Voice Notepad uses global hotkeys (F15-F19) that work system-wide, even when the app is minimized. Most standard keyboards don't have F15+ keys, but you can easily remap any key or button to emit these keycodes.
+AI Transcription Notepad uses global hotkeys (F15-F19) that work system-wide, even when the app is minimized. Most standard keyboards don't have F15+ keys, but you can easily remap any key or button to emit these keycodes.
 
 !!! tip "Recommended Tool: Input Remapper"
     We highly recommend **[Input Remapper](https://github.com/sezanzeb/input-remapper)** for setting up hotkeys on Linux. It's a powerful, open-source tool that works with any input device including foot pedals, macro keypads, and extra mouse buttons.
@@ -8,7 +8,7 @@ Voice Notepad uses global hotkeys (F15-F19) that work system-wide, even when the
 **[Download PDF Guide](manuals/hotkey-setup-guide.pdf)** - Visual step-by-step walkthrough
 
 This guide shows two approaches:
-1. **Remap to Pause key** - Use an existing keyboard key that Voice Notepad can detect
+1. **Remap to Pause key** - Use an existing keyboard key that AI Transcription Notepad can detect
 2. **Remap to F15** - Use the extended function keys for dedicated voice control
 
 ## Why F15-F19?
@@ -92,7 +92,7 @@ Search for "f15" and select `KEY_F15`. This gives you a dedicated key that won't
 
 If you have multiple buttons available (like a foot pedal with 3 buttons), consider this setup:
 
-| Button | Maps To | Voice Notepad Action |
+| Button | Maps To | AI Transcription Notepad Action |
 |--------|---------|---------------------|
 | Button 1 | KEY_F15 | Toggle Recording |
 | Button 2 | KEY_F17 | Transcribe |
@@ -106,7 +106,7 @@ If you prefer using standard keyboard keys, you can also use:
 - **Scroll Lock** - Another rarely-used key
 - **Insert** - If you don't use it for pasting
 
-Configure these in Voice Notepad's Settings > Hotkeys tab (note: currently fixed to F15-F19, configurable UI coming in a future release).
+Configure these in AI Transcription Notepad's Settings > Hotkeys tab (note: currently fixed to F15-F19, configurable UI coming in a future release).
 
 ## Troubleshooting
 
@@ -115,7 +115,7 @@ Configure these in Voice Notepad's Settings > Hotkeys tab (note: currently fixed
 - Try running `sudo input-remapper-gtk` for permission issues
 - Check if udev rules are needed for your device
 
-**Keys don't work in Voice Notepad:**
+**Keys don't work in AI Transcription Notepad:**
 - Verify the mapping is active (green indicator in Input Remapper)
 - Test with `xev` or `wev` to confirm the key is being emitted
 - On Wayland, ensure XWayland compatibility is working

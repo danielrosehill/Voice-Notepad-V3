@@ -1,6 +1,6 @@
 # Audio Multimodal vs Traditional ASR
 
-Voice Notepad uses audio multimodal models rather than traditional ASR pipelines.
+AI Transcription Notepad uses audio multimodal models rather than traditional ASR pipelines.
 
 ## Traditional Approach
 
@@ -25,6 +25,6 @@ A single API call also means lower latency and simpler integration.
 
 Multimodal isn't always the better choice. For bulk transcription without cleanup, dedicated ASR can be faster and cheaper per minute of audio. Traditional ASR models can also be fine-tuned for specialized domains like medical terminology or legal jargon. Some ASR models like Whisper can run fully offline, while multimodal models require cloud APIs.
 
-## Voice Notepad's Approach
+## AI Transcription Notepad's Approach
 
-Voice Notepad is designed specifically for the multimodal workflow: record audio, optionally process it through VAD and compression, then send it with a cleanup prompt to a multimodal model. The cleanup prompt instructs the model to transcribe, remove filler words, add punctuation and paragraphs, follow verbal instructions, and format as markdown, all in a single pass.
+AI Transcription Notepad is designed specifically for the multimodal workflow: record audio, optionally process it through VAD and compression, then send it with a cleanup prompt to a multimodal model. The cleanup prompt instructs the model to transcribe, remove filler words, add punctuation and paragraphs, follow verbal instructions, and format as markdown, all in a single pass.

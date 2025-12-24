@@ -1,6 +1,6 @@
 # Configuration
 
-Voice Notepad stores settings in `~/.config/voice-notepad-v3/`.
+AI Transcription Notepad stores settings in `~/.config/voice-notepad-v3/`.
 
 ## API Keys
 

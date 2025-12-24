@@ -62,7 +62,7 @@ class AboutWidget(QWidget):
         layout.setContentsMargins(12, 12, 12, 12)
 
         # App title and version
-        title = QLabel("Voice Notepad")
+        title = QLabel("AI Transcription Notepad")
         title.setFont(QFont("Sans", 24, QFont.Weight.Bold))
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(title)
@@ -404,7 +404,7 @@ class AboutDialog(QDialog):
         self._init_ui()
 
     def _init_ui(self):
-        self.setWindowTitle("About Voice Notepad")
+        self.setWindowTitle("About AI Transcription Notepad")
         self.setMinimumSize(450, 400)
         self.resize(500, 600)
 

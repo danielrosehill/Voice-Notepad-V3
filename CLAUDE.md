@@ -1,8 +1,8 @@
-# CLAUDE.md - Voice Notepad V3
+# CLAUDE.md - AI Transcription Notepad V3
 
 ## Project Overview
 
-Voice Notepad V3 is a PyQt6 desktop application for voice recording with AI-powered transcription and cleanup. The key innovation is using **multimodal AI models** to transcribe audio AND clean it up in a single pass, eliminating the previous two-phase approach (ASR + LLM).
+AI Transcription Notepad V3 is a PyQt6 desktop application for voice recording with AI-powered transcription and cleanup. The key innovation is using **multimodal AI models** to transcribe audio AND clean it up in a single pass, eliminating the previous two-phase approach (ASR + LLM).
 
 ## Core Concept
 
@@ -126,11 +126,11 @@ OPENROUTER_API_KEY=your_key  # Alternative - access via OpenAI-compatible API
 
 ### The Cleanup Prompt
 
-Voice Notepad uses a layered prompt system to transform speech into clean, well-formatted text. This is single-pass dictation processing: audio in, edited text out.
+AI Transcription Notepad uses a layered prompt system to transform speech into clean, well-formatted text. This is single-pass dictation processing: audio in, edited text out.
 
 #### Foundation Cleanup (Always Applied)
 
-The foundation layer is always applied to every transcription. This is what distinguishes Voice Notepad from traditional speech-to-text. Defined in `config.py` as `FOUNDATION_PROMPT_SECTIONS`.
+The foundation layer is always applied to every transcription. This is what distinguishes AI Transcription Notepad from traditional speech-to-text. Defined in `config.py` as `FOUNDATION_PROMPT_SECTIONS`.
 
 **1. Task Definition**
 - Transform audio into polished, publication-ready text—not a verbatim transcript
@@ -197,7 +197,7 @@ The prompt is further customized by:
 
 ### Email Personalization
 
-Voice Notepad supports **multiple email addresses and signatures** for different contexts via Settings → Personalization:
+AI Transcription Notepad supports **multiple email addresses and signatures** for different contexts via Settings → Personalization:
 
 - **Business Email**: Professional email address and signature for work communications
 - **Personal Email**: Personal email address and signature for casual communications
@@ -408,7 +408,7 @@ The database tracks per-transcription metrics:
 
 ## Database Architecture
 
-Voice Notepad uses **Mongita**, a pure Python implementation of MongoDB, for local data storage. This provides a document-based database that's more flexible than traditional SQL databases.
+AI Transcription Notepad uses **Mongita**, a pure Python implementation of MongoDB, for local data storage. This provides a document-based database that's more flexible than traditional SQL databases.
 
 ### Why MongoDB/Mongita?
 

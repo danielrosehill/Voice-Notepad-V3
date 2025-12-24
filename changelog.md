@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to Voice Notepad will be documented in this file.
+All notable changes to AI Transcription Notepad will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
@@ -24,7 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Easily distinguish dev version from packaged release
   - Enabled via `VOICE_NOTEPAD_DEV_MODE` environment variable
 - **Dev Launcher Scripts**: Install separate launcher for development version
-  - `install-dev-launcher.sh` - Creates "Voice Notepad V3 (Dev)" menu entry
+  - `install-dev-launcher.sh` - Creates "AI Transcription Notepad V3 (Dev)" menu entry
   - `uninstall-dev-launcher.sh` - Removes dev launcher
   - Coexists with packaged version without conflicts
 

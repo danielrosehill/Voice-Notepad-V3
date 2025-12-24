@@ -1,6 +1,6 @@
 # Audio Pipeline
 
-Voice Notepad processes audio through several stages before sending it to AI models.
+AI Transcription Notepad processes audio through several stages before sending it to AI models.
 
 ## Overview
 

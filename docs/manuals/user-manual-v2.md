@@ -1,4 +1,4 @@
-# Voice Notepad User Manual
+# AI Transcription Notepad User Manual
 
 **Version 2.0 (Application v1.8.0)**
 
@@ -37,11 +37,11 @@
 
 ## Introduction
 
-Voice Notepad is a desktop application for voice recording with AI-powered transcription and cleanup. Unlike traditional speech-to-text tools that require a separate text cleanup pass, Voice Notepad uses **multimodal AI models** that can process audio directly and perform both transcription and text cleanup in a single operation.
+AI Transcription Notepad is a desktop application for voice recording with AI-powered transcription and cleanup. Unlike traditional speech-to-text tools that require a separate text cleanup pass, AI Transcription Notepad uses **multimodal AI models** that can process audio directly and perform both transcription and text cleanup in a single operation.
 
 ### Why Multimodal?
 
-Most voice-to-text apps use a two-step process: first transcribe with ASR (Automatic Speech Recognition), then clean up with an LLM (Large Language Model). Voice Notepad sends your audio directly to multimodal AI models that can hear and transcribe in a single pass.
+Most voice-to-text apps use a two-step process: first transcribe with ASR (Automatic Speech Recognition), then clean up with an LLM (Large Language Model). AI Transcription Notepad sends your audio directly to multimodal AI models that can hear and transcribe in a single pass.
 
 This matters because:
 
@@ -72,7 +72,7 @@ This matters because:
 
 ### Download Options
 
-Voice Notepad is available in multiple formats:
+AI Transcription Notepad is available in multiple formats:
 
 | Format | Platform | Description |
 |--------|----------|-------------|
@@ -113,7 +113,7 @@ The script creates a virtual environment using `uv` and installs dependencies au
 
 ### 1. Configure API Keys
 
-Before using Voice Notepad, you need to set up at least one API key:
+Before using AI Transcription Notepad, you need to set up at least one API key:
 
 1. Click the **Settings** button in the top-right corner
 2. Go to the **API Keys** tab
@@ -146,7 +146,7 @@ On the Record tab:
 
 ## Main Interface
 
-Voice Notepad uses a tabbed interface with several main sections. The recording controls are always visible at the top of the window across all tabs.
+AI Transcription Notepad uses a tabbed interface with several main sections. The recording controls are always visible at the top of the window across all tabs.
 
 ### Persistent Control Bar
 
@@ -342,7 +342,7 @@ Database management options:
 
 ## Format Presets
 
-Voice Notepad includes many format presets organized by category:
+AI Transcription Notepad includes many format presets organized by category:
 
 ### Foundational
 - **General**: No specific formatting—general cleanup only
@@ -399,7 +399,7 @@ Voice Notepad includes many format presets organized by category:
 
 ## Global Hotkeys
 
-Global hotkeys work system-wide, even when Voice Notepad is minimized or unfocused.
+Global hotkeys work system-wide, even when AI Transcription Notepad is minimized or unfocused.
 
 ### Current Hotkey Mapping (F15-F19)
 
@@ -452,7 +452,7 @@ See the [Hotkey Setup Guide](hotkey-setup.md) for detailed instructions.
 
 ### In-App Shortcuts
 
-These work when the Voice Notepad window is focused:
+These work when the AI Transcription Notepad window is focused:
 
 | Shortcut | Action |
 |----------|--------|
@@ -467,7 +467,7 @@ These work when the Voice Notepad window is focused:
 
 ## Audio Pipeline
 
-Voice Notepad processes audio through several stages before sending it to AI models:
+AI Transcription Notepad processes audio through several stages before sending it to AI models:
 
 ### Processing Stages
 
@@ -512,7 +512,7 @@ Voice Notepad processes audio through several stages before sending it to AI mod
 
 ## Cost Tracking
 
-Voice Notepad tracks API costs with **OpenRouter providing accurate key-specific costs** from the API.
+AI Transcription Notepad tracks API costs with **OpenRouter providing accurate key-specific costs** from the API.
 
 ### Cost Effectiveness
 
@@ -623,4 +623,4 @@ All data is stored in `~/.config/voice-notepad-v3/`:
 
 ---
 
-*Voice Notepad User Manual v2 (Application v1.8.0) - MIT License*
+*AI Transcription Notepad User Manual v2 (Application v1.8.0) - MIT License*

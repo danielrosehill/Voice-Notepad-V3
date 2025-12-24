@@ -85,7 +85,7 @@ Only after explicit user confirmation:
 
 ## Project-Specific Considerations
 
-For Voice Notepad V3 specifically:
+For AI Transcription Notepad V3 specifically:
 - Version is stored in `app/src/pyproject.toml` (or `pyproject.toml`)
 - Build script is `./build.sh --all` for creating all distribution formats
 - Release workflow: `./build.sh --release [patch|minor|major]` handles version bump + screenshots + builds

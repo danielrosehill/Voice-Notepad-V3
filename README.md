@@ -19,7 +19,7 @@ Gemini is available through the Google Gemini API (recommended for the dynamic `
 
 ## How It Works
 
-Most voice-to-text apps use a two-step process: first transcribe with ASR, then clean up with an LLM. Voice Notepad sends your audio directly to multimodal AI models that can hear and transcribe in a single pass.
+Most voice-to-text apps use a two-step process: first transcribe with ASR, then clean up with an LLM. AI Transcription Notepad sends your audio directly to multimodal AI models that can hear and transcribe in a single pass.
 
 This matters because the AI "hears" your tone, pauses, and emphasis rather than just processing raw text. Verbal editing works naturally: say "scratch that" or "new paragraph" and the model understands. You also get faster turnaround and lower cost with one API call instead of two.
 
@@ -31,7 +31,7 @@ This matters because the AI "hears" your tone, pauses, and emphasis rather than 
 
 ## Features
 
-Voice Notepad records audio and sends it directly to multimodal models with a cleanup prompt. No separate ASR step is required. You can record with your microphone or upload audio files (MP3, WAV, OGG, M4A, FLAC).
+AI Transcription Notepad records audio and sends it directly to multimodal models with a cleanup prompt. No separate ASR step is required. You can record with your microphone or upload audio files (MP3, WAV, OGG, M4A, FLAC).
 
 Global hotkeys let you record from anywhere, even when the app is minimized. Voice Activity Detection strips silence before upload to reduce costs, and Automatic Gain Control normalizes audio levels for consistent results.
 
@@ -108,7 +108,7 @@ System-wide hotkeys (F15-F19) work even when the app is minimized. Toggle record
 
 ![alt text](screenshots/v_18_1/2.png)
 
-Multimodal transcription is extraordinarily cost-effective. Real usage data from Voice Notepad using Gemini 2.5 Flash:
+Multimodal transcription is extraordinarily cost-effective. Real usage data from AI Transcription Notepad using Gemini 2.5 Flash:
 
 - **848 transcriptions** for **$1.17 total**
 - **84,000 words** transcribed and cleaned
