@@ -6,6 +6,8 @@ AI Transcription Notepad is a desktop application that uses multimodal AI models
 
 - [Installation](installation.md) - Download and setup
 - [Configuration](configuration.md) - API keys and settings
+- [Hotkey Setup](hotkey-setup.md) - Global hotkeys for hands-free operation
+- [Text Injection Setup](text-injection.md) - Auto-paste on Wayland (ydotool)
 
 ## Reference
 

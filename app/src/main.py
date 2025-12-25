@@ -843,11 +843,11 @@ class MainWindow(QMainWindow):
         self.quiet_mode_checkbox.toggled.connect(self._on_quiet_mode_changed)
         toggles_layout.addWidget(self.quiet_mode_checkbox)
 
-        self.auto_paste_cb = QCheckBox("📋 Text Injection (Beta)")
+        self.auto_paste_cb = QCheckBox("📋 Text Injection")
         self.auto_paste_cb.setChecked(self.config.auto_paste)
         self.auto_paste_cb.setToolTip(
             "Auto-paste (Ctrl+V) after copying to clipboard.\n"
-            "⚠️ BETA: May cause instability on Wayland. Disable if you experience crashes."
+            "Requires ydotool on Wayland. See docs/text-injection.md for setup."
         )
         self.auto_paste_cb.toggled.connect(self._on_auto_paste_toggled)
         toggles_layout.addWidget(self.auto_paste_cb)

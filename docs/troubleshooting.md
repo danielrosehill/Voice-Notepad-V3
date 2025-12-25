@@ -28,6 +28,24 @@
 
 **Hotkeys not working:** Check configuration in Settings > Hotkeys. On Wayland, ensure XWayland is available. Some keys may be captured by the desktop environment. Try F14-F20 (macro keys) to avoid conflicts.
 
+## Text Injection (Auto-Paste)
+
+**Text not pasting after transcription:** Text injection requires `ydotool` with a properly configured daemon. See the [Text Injection Setup Guide](text-injection.md) for detailed instructions.
+
+**"ydotoold backend unavailable" warning:** The ydotool daemon is not running or is running as root instead of your user. Kill any existing daemon and restart as your user:
+```bash
+sudo pkill ydotoold
+sudo rm -f /tmp/.ydotool_socket
+ydotoold &
+```
+
+**Socket permission issues:** Check that `/tmp/.ydotool_socket` is owned by your user, not root:
+```bash
+ls -la /tmp/.ydotool_socket
+```
+
+For complete setup instructions, see [Text Injection Setup](text-injection.md).
+
 ## Database Issues
 
 **History not showing:** Check that the database file exists at `~/.config/voice-notepad-v3/transcriptions.db` and verify write permissions on the config directory.

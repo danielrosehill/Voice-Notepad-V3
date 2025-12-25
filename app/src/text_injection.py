@@ -37,6 +37,25 @@ def is_available() -> bool:
     return _ydotool_available
 
 
+def _get_ydotool_socket() -> Optional[str]:
+    """Find the ydotool socket path."""
+    import os
+    from pathlib import Path
+
+    # Check common socket locations
+    candidates = [
+        os.environ.get('YDOTOOL_SOCKET'),
+        '/tmp/.ydotool_socket',
+        f'/run/user/{os.getuid()}/.ydotool_socket',
+        str(Path.home() / '.ydotool_socket'),
+    ]
+
+    for path in candidates:
+        if path and Path(path).exists():
+            return path
+    return None
+
+
 def paste_clipboard(delay_before: float = 0.1) -> bool:
     """Paste clipboard contents using ydotool.
 
@@ -46,6 +65,8 @@ def paste_clipboard(delay_before: float = 0.1) -> bool:
     Returns:
         True if paste was sent successfully, False otherwise
     """
+    import os
+
     if not is_available():
         print("Warning: ydotool not available for text injection.")
         return False
@@ -54,12 +75,19 @@ def paste_clipboard(delay_before: float = 0.1) -> bool:
         # Wait for clipboard to be ready
         time.sleep(delay_before)
 
+        # Find and set the ydotool socket
+        socket_path = _get_ydotool_socket()
+        env = os.environ.copy()
+        if socket_path:
+            env['YDOTOOL_SOCKET'] = socket_path
+
         # Use ydotool to send Ctrl+V
-        subprocess.run(
+        result = subprocess.run(
             ["ydotool", "key", "ctrl+v"],
             check=True,
             capture_output=True,
-            timeout=2
+            timeout=2,
+            env=env
         )
         return True
     except FileNotFoundError:
