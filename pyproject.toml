@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "voice-notepad"
-version = "1.9.6"
+version = "1.9.7"
 description = "Voice recording with AI-powered transcription and cleanup"
 readme = "README.md"
 license = {text = "MIT"}
