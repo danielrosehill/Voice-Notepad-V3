@@ -1112,6 +1112,18 @@ class MainWindow(QMainWindow):
             QIcon.fromTheme("dialog-ok",
                 self.style().standardIcon(self.style().StandardPixmap.SP_DialogApplyButton))
         )
+        # Clipboard complete: clipboard/paste icon
+        self._tray_icon_clipboard = QIcon.fromTheme(
+            "edit-paste",
+            QIcon.fromTheme("clipboard",
+                self.style().standardIcon(self.style().StandardPixmap.SP_FileDialogContentsView))
+        )
+        # Inject complete: keyboard/input icon
+        self._tray_icon_inject = QIcon.fromTheme(
+            "input-keyboard",
+            QIcon.fromTheme("preferences-desktop-keyboard",
+                self.style().standardIcon(self.style().StandardPixmap.SP_ComputerIcon))
+        )
 
         self.tray.setIcon(self._tray_icon_idle)
         self.setWindowIcon(self._tray_icon_idle)
@@ -1999,15 +2011,15 @@ class MainWindow(QMainWindow):
             del self.last_vad_duration
 
         # Handle output based on mode
-        status_text = "Done!"
+        tray_state = "complete"
         if output_mode == "clipboard":
             # Copy to clipboard only
             self._copy_to_clipboard_wayland(result.text)
-            status_text = "Copied!"
+            tray_state = "clipboard_complete"
         elif output_mode == "inject":
             # Type directly at cursor (no clipboard)
             self._inject_text_at_cursor(result.text)
-            status_text = "Injected!"
+            tray_state = "inject_complete"
         # app_only mode: no clipboard, no injection - text is already in app
 
         # Play beep (unless in Quiet Mode)
@@ -2021,12 +2033,15 @@ class MainWindow(QMainWindow):
         # Enable append button only for app_only mode (where text is visible)
         self.append_btn.setEnabled(output_mode == "app_only")
 
-        self.status_label.setText(status_text)
-        self.status_label.setStyleSheet("color: rgba(40, 167, 69, 0.7); font-size: 11px;")
+        # Show mode-specific complete state
+        self._set_tray_state(tray_state)
 
-        # Show complete state (green tick) then transition to idle after 3 seconds
-        self._set_tray_state('complete')
-        QTimer.singleShot(3000, lambda: self._set_tray_state('idle') if self._tray_state == 'complete' else None)
+        # In quiet mode for clipboard/inject, keep status visible indefinitely
+        # (it will clear when user starts next recording)
+        # Otherwise, auto-hide after 3 seconds
+        if not self.config.quiet_mode or output_mode == "app_only":
+            complete_states = ('complete', 'clipboard_complete', 'inject_complete')
+            QTimer.singleShot(3000, lambda: self._set_tray_state('idle') if self._tray_state in complete_states else None)
 
     def on_transcription_error(self, error: str):
         """Handle transcription error."""
@@ -2601,7 +2616,8 @@ class MainWindow(QMainWindow):
     def _set_tray_state(self, state: str):
         """Update tray icon and menu based on state.
 
-        States: 'idle', 'recording', 'stopped', 'transcribing', 'complete'
+        States: 'idle', 'recording', 'stopped', 'transcribing', 'complete',
+                'clipboard_complete', 'inject_complete'
         """
         self._tray_state = state
         # Update icon and status label
@@ -2641,6 +2657,26 @@ class MainWindow(QMainWindow):
         elif state == 'complete':
             self.tray.setIcon(self._tray_icon_complete)
             self.status_label.setText("✓ Complete")
+            self.status_label.setStyleSheet("""
+                QLabel {
+                    color: rgba(40, 167, 69, 0.7);
+                    font-size: 11px;
+                }
+            """)
+            self.status_label.show()
+        elif state == 'clipboard_complete':
+            self.tray.setIcon(self._tray_icon_clipboard)
+            self.status_label.setText("📋 Text on Clipboard")
+            self.status_label.setStyleSheet("""
+                QLabel {
+                    color: rgba(40, 167, 69, 0.7);
+                    font-size: 11px;
+                }
+            """)
+            self.status_label.show()
+        elif state == 'inject_complete':
+            self.tray.setIcon(self._tray_icon_inject)
+            self.status_label.setText("⌨ Text Injected")
             self.status_label.setStyleSheet("""
                 QLabel {
                     color: rgba(40, 167, 69, 0.7);
