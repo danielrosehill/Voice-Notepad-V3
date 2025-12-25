@@ -228,6 +228,9 @@ class Config:
     prompt_stack_elements: list = field(default_factory=list)  # List of selected element keys
     use_prompt_stacks: bool = False  # Whether to use prompt stacks instead of legacy format system
 
+    # UI state
+    prompt_stack_collapsed: bool = True  # Whether the prompt stack is collapsed (default: collapsed)
+
 
 def load_config() -> Config:
     """Load configuration from disk, or create default."""

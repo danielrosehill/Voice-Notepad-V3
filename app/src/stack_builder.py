@@ -2,15 +2,16 @@
 
 A visual columnar interface for building prompt stacks on the Record tab.
 Replaces FavoritesBar with a more intuitive layer-based approach.
+Includes collapsible accordion functionality for space efficiency.
 """
 
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QGridLayout,
     QRadioButton, QCheckBox, QButtonGroup, QLabel,
-    QFrame, QComboBox, QPushButton,
+    QFrame, QComboBox, QPushButton, QToolButton,
     QSizePolicy, QGroupBox,
 )
-from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtCore import Qt, pyqtSignal, QPropertyAnimation, QEasingCurve, QParallelAnimationGroup
 from PyQt6.QtGui import QFont
 from typing import Optional, List, Dict, Any
 
@@ -87,18 +88,46 @@ class StackBuilderWidget(QWidget):
         self._connect_signals()
 
     def _setup_ui(self):
-        """Set up the columnar UI layout."""
+        """Set up the columnar UI layout with collapsible accordion."""
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(0, 0, 0, 0)
-        main_layout.setSpacing(8)
+        main_layout.setSpacing(0)
 
-        # Header with reset button
-        header_layout = QHBoxLayout()
-        header = QLabel("📚 <b>Prompt Stack</b>")
-        header.setStyleSheet("font-size: 12px; color: #444; padding: 2px 0;")
-        header_layout.addWidget(header)
+        # Collapsible header (clickable to expand/collapse)
+        self.header_frame = QFrame()
+        self.header_frame.setStyleSheet("""
+            QFrame {
+                background-color: #f8f9fa;
+                border: 1px solid #dee2e6;
+                border-radius: 6px;
+            }
+            QFrame:hover {
+                background-color: #e9ecef;
+            }
+        """)
+        self.header_frame.setCursor(Qt.CursorShape.PointingHandCursor)
+        header_layout = QHBoxLayout(self.header_frame)
+        header_layout.setContentsMargins(10, 6, 10, 6)
+        header_layout.setSpacing(8)
+
+        # Arrow indicator
+        self.toggle_arrow = QLabel("▶")
+        self.toggle_arrow.setStyleSheet("font-size: 10px; color: #666;")
+        header_layout.addWidget(self.toggle_arrow)
+
+        # Header label
+        header_label = QLabel("📚 <b>Prompt Stack</b>")
+        header_label.setStyleSheet("font-size: 12px; color: #444;")
+        header_layout.addWidget(header_label)
+
+        # Current selection summary (shown when collapsed)
+        self.summary_label = QLabel("")
+        self.summary_label.setStyleSheet("font-size: 11px; color: #888; font-style: italic;")
+        header_layout.addWidget(self.summary_label)
+
         header_layout.addStretch()
 
+        # Reset button (always visible)
         self.reset_btn = QPushButton("↺ Reset")
         self.reset_btn.setToolTip("Reset to General with no modifiers")
         self.reset_btn.setMaximumWidth(70)
@@ -117,7 +146,14 @@ class StackBuilderWidget(QWidget):
             }
         """)
         header_layout.addWidget(self.reset_btn)
-        main_layout.addLayout(header_layout)
+
+        main_layout.addWidget(self.header_frame)
+
+        # Content container (collapsible)
+        self.content_widget = QWidget()
+        content_layout = QVBoxLayout(self.content_widget)
+        content_layout.setContentsMargins(0, 8, 0, 0)
+        content_layout.setSpacing(8)
 
         # Columns container - increased spacing between columns
         columns_layout = QHBoxLayout()
@@ -136,7 +172,15 @@ class StackBuilderWidget(QWidget):
         columns_layout.addWidget(self._create_style_container())
         columns_layout.addStretch()
 
-        main_layout.addLayout(columns_layout)
+        content_layout.addLayout(columns_layout)
+        main_layout.addWidget(self.content_widget)
+
+        # Make header clickable
+        self.header_frame.mousePressEvent = self._on_header_clicked
+
+        # Initialize collapsed state from config
+        self._collapsed = self.config.prompt_stack_collapsed
+        self._update_collapsed_state(animate=False)
 
     def _create_column_frame(self, title: str) -> QFrame:
         """Create a styled frame for a column."""
@@ -349,6 +393,7 @@ class StackBuilderWidget(QWidget):
     def _on_setting_changed(self):
         """Handle any setting change."""
         self._save_to_config()
+        self._update_summary_label()
         self.prompt_changed.emit()
 
     def _on_format_radio_changed(self):
@@ -518,3 +563,91 @@ class StackBuilderWidget(QWidget):
     def refresh(self):
         """Reload settings from config (e.g., after external change)."""
         self._load_from_config()
+        self._update_summary_label()
+
+    def _on_header_clicked(self, event):
+        """Handle header click to toggle collapse state."""
+        self._collapsed = not self._collapsed
+        self._update_collapsed_state(animate=True)
+        # Save state to config
+        self.config.prompt_stack_collapsed = self._collapsed
+
+    def _update_collapsed_state(self, animate: bool = True):
+        """Update the UI to reflect the collapsed state."""
+        if self._collapsed:
+            self.toggle_arrow.setText("▶")
+            self.content_widget.setVisible(False)
+            self._update_summary_label()
+            self.summary_label.setVisible(True)
+        else:
+            self.toggle_arrow.setText("▼")
+            self.content_widget.setVisible(True)
+            self.summary_label.setVisible(False)
+
+    def _update_summary_label(self):
+        """Update the summary label to show current selections when collapsed."""
+        parts = []
+
+        # Base type
+        if self.base_buttons.get("verbatim") and self.base_buttons["verbatim"].isChecked():
+            parts.append("Verbatim")
+        else:
+            # Show format if not "none" or "general"
+            format_key = None
+            for key, radio in self.format_buttons.items():
+                if radio.isChecked() and key not in ("none", "general"):
+                    format_key = key
+                    break
+            if not format_key:
+                combo_key = self.format_combo.currentData()
+                if combo_key:
+                    format_key = combo_key
+
+            if format_key:
+                # Get display name from quick options or combo
+                display_name = format_key.replace("_", " ").title()
+                for key, label, _ in self.FORMAT_QUICK_OPTIONS:
+                    if key == format_key:
+                        display_name = label
+                        break
+                parts.append(display_name)
+
+        # Tone (if not neutral)
+        tone_key = None
+        for key, radio in self.tone_buttons.items():
+            if radio.isChecked() and key != "neutral":
+                tone_key = key
+                break
+        if not tone_key:
+            combo_tone = self.tone_combo.currentData()
+            if combo_tone:
+                tone_key = combo_tone
+
+        if tone_key:
+            display_name = tone_key.capitalize()
+            for key, label, _ in self.TONE_QUICK_OPTIONS + self.TONE_MORE_OPTIONS:
+                if key == tone_key:
+                    display_name = label
+                    break
+            parts.append(display_name)
+
+        # Count of selected styles
+        style_count = sum(1 for cb in self.style_checkboxes.values() if cb.isChecked())
+        if style_count > 0:
+            parts.append(f"+{style_count} style{'s' if style_count > 1 else ''}")
+
+        if parts:
+            self.summary_label.setText("— " + " · ".join(parts))
+        else:
+            self.summary_label.setText("— General (click to customize)")
+
+    def is_collapsed(self) -> bool:
+        """Return whether the widget is currently collapsed."""
+        return self._collapsed
+
+    def set_collapsed(self, collapsed: bool, animate: bool = True):
+        """Set the collapsed state programmatically."""
+        if self._collapsed != collapsed:
+            self._collapsed = collapsed
+            self._update_collapsed_state(animate=animate)
+            self.config.prompt_stack_collapsed = collapsed

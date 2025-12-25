@@ -624,8 +624,8 @@ class TranscriptionDB:
                     if idx['name'] != '_id_':
                         try:
                             transcriptions.drop_index(idx['name'])
-                        except:
-                            pass
+                        except Exception:
+                            pass  # Index may already be dropped or doesn't exist
 
                 # Recreate indexes
                 transcriptions.create_index('timestamp')
@@ -634,8 +634,8 @@ class TranscriptionDB:
 
                 try:
                     transcriptions.create_index([('transcript_text', 'text')])
-                except:
-                    pass  # Text indexes may not be fully supported
+                except Exception:
+                    pass  # Text indexes may not be fully supported in Mongita
 
                 # Clean up orphaned audio files
                 self._cleanup_orphaned_audio()
@@ -686,7 +686,7 @@ class TranscriptionDB:
                     if 'text' in idx.get('key', []):
                         return True
                 return False
-            except:
+            except Exception:
                 return False
 
     # ===== PROMPT LIBRARY OPERATIONS =====
@@ -725,7 +725,7 @@ class TranscriptionDB:
                     doc['id'] = str(doc['_id'])
                     del doc['_id']
                 return doc
-            except:
+            except Exception:
                 return None
 
     def get_prompts(
@@ -799,7 +799,7 @@ class TranscriptionDB:
                     {'$set': updates}
                 )
                 return result.modified_count > 0
-            except:
+            except Exception:
                 return False
 
     def delete_prompt(self, prompt_id: str) -> bool:
@@ -811,7 +811,7 @@ class TranscriptionDB:
             try:
                 result = db.prompts.delete_one({'_id': ObjectId(prompt_id)})
                 return result.deleted_count > 0
-            except:
+            except Exception:
                 return False
 
     def get_prompt_categories(self) -> List[str]:

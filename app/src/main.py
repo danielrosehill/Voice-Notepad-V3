@@ -266,6 +266,8 @@ class MainWindow(QMainWindow):
         self.recorder = AudioRecorder(self.config.sample_rate)
         self.recorder.on_error = self._on_recorder_error
         self.worker: TranscriptionWorker | None = None
+        self.rewrite_worker: RewriteWorker | None = None
+        self.title_worker: TitleGeneratorWorker | None = None
         self.recording_duration = 0.0
         self.accumulated_segments: list[bytes] = []  # For append mode
         self.accumulated_duration: float = 0.0
@@ -339,7 +341,7 @@ class MainWindow(QMainWindow):
         """Handle microphone error on main thread."""
         self.timer.stop()
         self.status_label.setText(f"⚠️ {error_msg}")
-        self.status_label.setStyleSheet("color: #dc3545; font-weight: bold;")
+        self.status_label.setStyleSheet("color: rgba(220, 53, 69, 0.7); font-size: 11px;")
         self.status_label.show()
         self.tray.showMessage(
             "Voice Notepad",
@@ -367,6 +369,60 @@ class MainWindow(QMainWindow):
             self.append_btn.setEnabled(False)
             self.delete_btn.setEnabled(False)
         self._set_tray_state('idle')
+
+    def _cleanup_worker(self, worker_attr: str, timeout_ms: int = 2000):
+        """Safely clean up a worker thread before creating a new one.
+
+        Args:
+            worker_attr: Name of the worker attribute (e.g., 'worker', 'rewrite_worker')
+            timeout_ms: How long to wait for the thread to finish (in milliseconds)
+        """
+        worker = getattr(self, worker_attr, None)
+        if worker is None:
+            return
+
+        # Disconnect all signals to prevent callbacks from old worker
+        try:
+            worker.finished.disconnect()
+        except (TypeError, RuntimeError):
+            pass  # Already disconnected or object deleted
+        try:
+            worker.error.disconnect()
+        except (TypeError, RuntimeError):
+            pass
+        try:
+            if hasattr(worker, 'status'):
+                worker.status.disconnect()
+        except (TypeError, RuntimeError):
+            pass
+        try:
+            if hasattr(worker, 'vad_complete'):
+                worker.vad_complete.disconnect()
+        except (TypeError, RuntimeError):
+            pass
+        try:
+            if hasattr(worker, 'progress'):
+                worker.progress.disconnect()
+        except (TypeError, RuntimeError):
+            pass
+
+        # Request thread to quit and wait for it
+        if worker.isRunning():
+            worker.quit()
+            if not worker.wait(timeout_ms):
+                # Thread didn't finish in time, force terminate (last resort)
+                print(f"Warning: {worker_attr} thread did not finish in time, terminating")
+                worker.terminate()
+                worker.wait(1000)
+
+        # Clear the reference
+        setattr(self, worker_attr, None)
+
+    def _cleanup_all_workers(self):
+        """Clean up all worker threads. Called on application quit."""
+        self._cleanup_worker('worker')
+        self._cleanup_worker('rewrite_worker')
+        self._cleanup_worker('title_worker')
 
     def setup_ui(self):
         """Set up the main UI with tabs."""
@@ -679,17 +735,7 @@ class MainWindow(QMainWindow):
 
         recording_layout.addLayout(control_bar)
 
-        # Status label (hidden by default, shows only for important states)
-        self.status_label = QLabel("")
-        self.status_label.setStyleSheet("""
-            QLabel {
-                color: #6c757d;
-                font-size: 12px;
-            }
-        """)
-        self.status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.status_label.hide()
-        recording_layout.addWidget(self.status_label)
+        # Status label is created in the bottom status bar section below
 
         # Segment indicator (for append mode)
         self.segment_label = QLabel("")
@@ -900,13 +946,27 @@ class MainWindow(QMainWindow):
 
         layout.addLayout(bottom)
 
-        # Bottom status bar: microphone (left), model (right)
+        # Bottom status bar: microphone (left), status (center), model (right)
         status_bar = QHBoxLayout()
 
         # Microphone info (left)
         self.mic_label = QLabel()
         self.mic_label.setStyleSheet("color: #888; font-size: 11px;")
         status_bar.addWidget(self.mic_label)
+
+        status_bar.addStretch()
+
+        # Status label (center) - shows recording/transcribing state with subtle opacity
+        self.status_label = QLabel("")
+        self.status_label.setStyleSheet("""
+            QLabel {
+                color: rgba(108, 117, 125, 0.7);
+                font-size: 11px;
+            }
+        """)
+        self.status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.status_label.hide()
+        status_bar.addWidget(self.status_label)
 
         status_bar.addStretch()
 
@@ -1271,7 +1331,7 @@ class MainWindow(QMainWindow):
         text = self.text_output.toPlainText()
         if not text:
             self.status_label.setText("Nothing to save")
-            self.status_label.setStyleSheet("color: #ffc107;")
+            self.status_label.setStyleSheet("color: rgba(255, 193, 7, 0.8); font-size: 11px;")
             self.status_label.show()
             QTimer.singleShot(2000, lambda: self.status_label.hide())
             return
@@ -1288,7 +1348,7 @@ class MainWindow(QMainWindow):
                 with open(file_path, 'w', encoding='utf-8') as f:
                     f.write(text)
                 self.status_label.setText("Saved!")
-                self.status_label.setStyleSheet("color: #28a745;")
+                self.status_label.setStyleSheet("color: rgba(40, 167, 69, 0.7); font-size: 11px;")
                 self.status_label.show()
             except Exception as e:
                 QMessageBox.critical(self, "Save Error", str(e))
@@ -1485,7 +1545,7 @@ class MainWindow(QMainWindow):
             self.transcribe_btn.setStyleSheet(self._transcribe_btn_recording_style)  # Yellow while recording
             self.delete_btn.setEnabled(True)  # Can delete current recording
             self.status_label.setText("Recording...")
-            self.status_label.setStyleSheet("color: #dc3545; font-weight: bold;")
+            self.status_label.setStyleSheet("color: rgba(220, 53, 69, 0.7); font-size: 11px;")
             self.timer.start(100)
             # Update tray to recording state
             self._set_tray_state('recording')
@@ -1496,13 +1556,13 @@ class MainWindow(QMainWindow):
             self.recorder.resume_recording()
             self.pause_btn.setText("⏸")
             self.status_label.setText("Recording...")
-            self.status_label.setStyleSheet("color: #dc3545; font-weight: bold;")
+            self.status_label.setStyleSheet("color: rgba(220, 53, 69, 0.7); font-size: 11px;")
             self.status_label.show()
         else:
             self.recorder.pause_recording()
             self.pause_btn.setText("▶")
             self.status_label.setText("Paused")
-            self.status_label.setStyleSheet("color: #ffc107; font-weight: bold;")
+            self.status_label.setStyleSheet("color: rgba(255, 193, 7, 0.8); font-size: 11px;")
             self.status_label.show()
 
     def handle_stop_button(self):
@@ -1539,7 +1599,7 @@ class MainWindow(QMainWindow):
         self.transcribe_btn.setStyleSheet(self._transcribe_btn_idle_style)  # Green when cached
         self.delete_btn.setEnabled(True)  # Can delete cached audio
         self.status_label.setText(f"Stopped ({len(self.accumulated_segments)} clip{'s' if len(self.accumulated_segments) > 1 else ''})")
-        self.status_label.setStyleSheet("color: #ffc107; font-weight: bold;")
+        self.status_label.setStyleSheet("color: rgba(255, 193, 7, 0.8); font-size: 11px;")
 
         # Update tray to stopped state
         self._set_tray_state('stopped')
@@ -1562,7 +1622,7 @@ class MainWindow(QMainWindow):
 
         # Combine all segments
         self.status_label.setText("Combining clips...")
-        self.status_label.setStyleSheet("color: #007bff; font-weight: bold;")
+        self.status_label.setStyleSheet("color: rgba(0, 123, 255, 0.7); font-size: 11px;")
         self.status_label.show()
         audio_data = combine_wav_segments(self.accumulated_segments)
 
@@ -1589,7 +1649,7 @@ class MainWindow(QMainWindow):
         self.transcribe_btn.setEnabled(False)
         self.delete_btn.setEnabled(False)
         self.status_label.setText("Transcribing...")
-        self.status_label.setStyleSheet("color: #007bff; font-weight: bold;")
+        self.status_label.setStyleSheet("color: rgba(0, 123, 255, 0.7); font-size: 11px;")
 
         # Update tray to transcribing state
         self._set_tray_state('transcribing')
@@ -1611,6 +1671,9 @@ class MainWindow(QMainWindow):
             )
             self.reset_ui()
             return
+
+        # Clean up any previous worker before creating new one
+        self._cleanup_worker('worker')
 
         # Start transcription worker
         cleanup_prompt = build_cleanup_prompt(self.config)
@@ -1658,7 +1721,7 @@ class MainWindow(QMainWindow):
             if self.accumulated_segments:
                 self.accumulated_segments.append(audio_data)
                 self.status_label.setText("Combining clips...")
-                self.status_label.setStyleSheet("color: #007bff; font-weight: bold;")
+                self.status_label.setStyleSheet("color: rgba(0, 123, 255, 0.7); font-size: 11px;")
                 self.status_label.show()
                 audio_data = combine_wav_segments(self.accumulated_segments)
                 # Clear accumulated segments after combining
@@ -1692,7 +1755,7 @@ class MainWindow(QMainWindow):
         self.transcribe_btn.setEnabled(False)
         self.delete_btn.setEnabled(False)
         self.status_label.setText("Transcribing...")
-        self.status_label.setStyleSheet("color: #007bff; font-weight: bold;")
+        self.status_label.setStyleSheet("color: rgba(0, 123, 255, 0.7); font-size: 11px;")
 
         # Update tray to transcribing state
         self._set_tray_state('transcribing')
@@ -1715,6 +1778,9 @@ class MainWindow(QMainWindow):
             self.reset_ui()
             return
 
+        # Clean up any previous worker before creating new one
+        self._cleanup_worker('worker')
+
         # Start transcription worker (VAD + compression + transcription all in background)
         cleanup_prompt = build_cleanup_prompt(self.config)
         self.worker = TranscriptionWorker(
@@ -1734,7 +1800,7 @@ class MainWindow(QMainWindow):
     def on_worker_status(self, status: str):
         """Handle worker status updates."""
         self.status_label.setText(status)
-        self.status_label.setStyleSheet("color: #007bff; font-weight: bold;")
+        self.status_label.setStyleSheet("color: rgba(0, 123, 255, 0.7); font-size: 11px;")
         self.status_label.show()
 
     def on_vad_complete(self, orig_dur: float, vad_dur: float):
@@ -1844,7 +1910,7 @@ class MainWindow(QMainWindow):
         self.append_btn.setEnabled(True)
 
         self.status_label.setText("Copied!")
-        self.status_label.setStyleSheet("color: #28a745; font-weight: bold;")
+        self.status_label.setStyleSheet("color: rgba(40, 167, 69, 0.7); font-size: 11px;")
 
         # Show complete state (green tick) then transition to idle after 3 seconds
         self._set_tray_state('complete')
@@ -2111,32 +2177,17 @@ class MainWindow(QMainWindow):
             clipboard.setText(text)
 
     def _paste_wayland(self):
-        """Simulate Ctrl+V paste using ydotool (Wayland-compatible).
+        """Simulate Ctrl+V paste using python-evdev uinput (Wayland-compatible).
 
-        This uses ydotool to inject keyboard input at the uinput level,
-        which works on Wayland where xdotool cannot. Requires the user
-        to be in the 'input' group or have appropriate permissions.
+        This uses python-evdev to create a virtual keyboard and inject
+        key events directly at the Linux kernel input level. This is more
+        reliable than ydotool as it doesn't require a daemon.
 
-        Falls back silently if ydotool is not available.
+        Requires the user to be in the 'input' group for /dev/uinput access.
+        Falls back to ydotool if python-evdev is unavailable.
         """
-        import subprocess
-        try:
-            # Small delay to ensure clipboard is ready
-            subprocess.run(
-                ["ydotool", "key", "--delay", "50", "ctrl+v"],
-                check=True,
-                capture_output=True,
-                timeout=2
-            )
-        except FileNotFoundError:
-            # ydotool not installed - fail silently
-            print("Warning: ydotool not found for auto-paste. Install with: sudo apt install ydotool")
-        except subprocess.TimeoutExpired:
-            print("Warning: ydotool paste timed out")
-        except subprocess.CalledProcessError as e:
-            print(f"Warning: ydotool paste failed: {e}")
-        except Exception as e:
-            print(f"Warning: Auto-paste failed: {e}")
+        from text_injection import paste_clipboard_with_fallback
+        paste_clipboard_with_fallback(delay_before=0.1)
 
     def copy_to_clipboard(self):
         """Copy transcription to clipboard."""
@@ -2146,7 +2197,7 @@ class MainWindow(QMainWindow):
 
             # Don't play beep here - only play when transcription first arrives
             self.status_label.setText("Copied!")
-            self.status_label.setStyleSheet("color: #28a745;")
+            self.status_label.setStyleSheet("color: rgba(40, 167, 69, 0.7); font-size: 11px;")
             self.status_label.show()
             QTimer.singleShot(2000, lambda: self.status_label.hide())
 
@@ -2191,8 +2242,11 @@ class MainWindow(QMainWindow):
         self.rewrite_btn.setEnabled(False)
         self.download_btn.setEnabled(False)
         self.status_label.setText("Rewriting...")
-        self.status_label.setStyleSheet("color: #007bff; font-weight: bold;")
+        self.status_label.setStyleSheet("color: rgba(0, 123, 255, 0.7); font-size: 11px;")
         self.status_label.show()
+
+        # Clean up any previous rewrite worker
+        self._cleanup_worker('rewrite_worker')
 
         # Start rewrite worker
         self.rewrite_worker = RewriteWorker(
@@ -2252,7 +2306,7 @@ class MainWindow(QMainWindow):
         self.rewrite_btn.setEnabled(True)
         self.download_btn.setEnabled(True)
         self.status_label.setText("Rewrite complete!")
-        self.status_label.setStyleSheet("color: #28a745; font-weight: bold;")
+        self.status_label.setStyleSheet("color: rgba(40, 167, 69, 0.7); font-size: 11px;")
         self.status_label.show()
         QTimer.singleShot(2000, lambda: self.status_label.hide())
 
@@ -2282,8 +2336,11 @@ class MainWindow(QMainWindow):
         # Disable button during title generation
         self.download_btn.setEnabled(False)
         self.status_label.setText("Generating title...")
-        self.status_label.setStyleSheet("color: #007bff; font-weight: bold;")
+        self.status_label.setStyleSheet("color: rgba(0, 123, 255, 0.7); font-size: 11px;")
         self.status_label.show()
+
+        # Clean up any previous title worker
+        self._cleanup_worker('title_worker')
 
         # Start title generation worker
         self.title_worker = TitleGeneratorWorker(
@@ -2305,7 +2362,7 @@ class MainWindow(QMainWindow):
         # Re-enable button
         self.download_btn.setEnabled(True)
         self.status_label.setText("Downloaded!")
-        self.status_label.setStyleSheet("color: #28a745; font-weight: bold;")
+        self.status_label.setStyleSheet("color: rgba(40, 167, 69, 0.7); font-size: 11px;")
         self.status_label.show()
         QTimer.singleShot(2000, lambda: self.status_label.hide())
 
@@ -2320,7 +2377,7 @@ class MainWindow(QMainWindow):
         # Re-enable button
         self.download_btn.setEnabled(True)
         self.status_label.setText("Downloaded (timestamp)")
-        self.status_label.setStyleSheet("color: #28a745; font-weight: bold;")
+        self.status_label.setStyleSheet("color: rgba(40, 167, 69, 0.7); font-size: 11px;")
         self.status_label.show()
         QTimer.singleShot(2000, lambda: self.status_label.hide())
 
@@ -2433,10 +2490,8 @@ class MainWindow(QMainWindow):
             self.status_label.setText("● Recording")
             self.status_label.setStyleSheet("""
                 QLabel {
-                    color: #dc3545;
-                    font-weight: bold;
-                    font-size: 13px;
-                    padding: 0 8px;
+                    color: rgba(220, 53, 69, 0.7);
+                    font-size: 11px;
                 }
             """)
             self.status_label.show()
@@ -2445,10 +2500,8 @@ class MainWindow(QMainWindow):
             self.status_label.setText("⏸ Stopped")
             self.status_label.setStyleSheet("""
                 QLabel {
-                    color: #ffc107;
-                    font-weight: bold;
-                    font-size: 13px;
-                    padding: 0 8px;
+                    color: rgba(255, 193, 7, 0.8);
+                    font-size: 11px;
                 }
             """)
             self.status_label.show()
@@ -2457,10 +2510,8 @@ class MainWindow(QMainWindow):
             self.status_label.setText("⟳ Transcribing")
             self.status_label.setStyleSheet("""
                 QLabel {
-                    color: #007bff;
-                    font-weight: bold;
-                    font-size: 13px;
-                    padding: 0 8px;
+                    color: rgba(0, 123, 255, 0.7);
+                    font-size: 11px;
                 }
             """)
             self.status_label.show()
@@ -2469,10 +2520,8 @@ class MainWindow(QMainWindow):
             self.status_label.setText("✓ Complete")
             self.status_label.setStyleSheet("""
                 QLabel {
-                    color: #28a745;
-                    font-weight: bold;
-                    font-size: 13px;
-                    padding: 0 8px;
+                    color: rgba(40, 167, 69, 0.7);
+                    font-size: 11px;
                 }
             """)
             self.status_label.show()
@@ -2544,9 +2593,19 @@ class MainWindow(QMainWindow):
 
     def quit_app(self):
         """Quit the application."""
+        # Clean up all worker threads first to prevent callbacks after quit
+        self._cleanup_all_workers()
+
+        # Stop hotkey listener
         self.hotkey_listener.stop()
+
+        # Clean up audio recorder
         self.recorder.cleanup()
+
+        # Save config
         save_config(self.config)
+
+        # Now quit the application
         QApplication.quit()
 
     def closeEvent(self, event):

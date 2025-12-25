@@ -162,11 +162,15 @@ class AudioFeedback:
 
 # Global instance
 _feedback: Optional[AudioFeedback] = None
+_feedback_lock = threading.Lock()
 
 
 def get_feedback() -> AudioFeedback:
-    """Get the global AudioFeedback instance."""
+    """Get the global AudioFeedback instance (thread-safe)."""
     global _feedback
     if _feedback is None:
-        _feedback = AudioFeedback()
+        with _feedback_lock:
+            # Double-check pattern for thread safety
+            if _feedback is None:
+                _feedback = AudioFeedback()
     return _feedback
