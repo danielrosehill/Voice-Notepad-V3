@@ -790,24 +790,24 @@ class MainWindow(QMainWindow):
             }
         """
 
-        # App Only button
+        # App button (toggleable)
         self.mode_app_btn = QPushButton("App")
-        self.mode_app_btn.setToolTip("App Only: Text appears in app (clipboard untouched)")
-        self.mode_app_btn.clicked.connect(lambda: self._set_output_mode("app_only"))
-        self._mode_buttons["app_only"] = self.mode_app_btn
+        self.mode_app_btn.setToolTip("App: Show text in app window")
+        self.mode_app_btn.clicked.connect(lambda: self._toggle_output_mode("app"))
+        self._mode_buttons["app"] = self.mode_app_btn
         mode_layout.addWidget(self.mode_app_btn)
 
-        # Clipboard button
+        # Clipboard button (toggleable)
         self.mode_clipboard_btn = QPushButton("Clipboard")
-        self.mode_clipboard_btn.setToolTip("Clipboard: Text copied to clipboard")
-        self.mode_clipboard_btn.clicked.connect(lambda: self._set_output_mode("clipboard"))
+        self.mode_clipboard_btn.setToolTip("Clipboard: Copy text to clipboard")
+        self.mode_clipboard_btn.clicked.connect(lambda: self._toggle_output_mode("clipboard"))
         self._mode_buttons["clipboard"] = self.mode_clipboard_btn
         mode_layout.addWidget(self.mode_clipboard_btn)
 
-        # Inject button
+        # Inject button (toggleable)
         self.mode_inject_btn = QPushButton("Inject")
-        self.mode_inject_btn.setToolTip("Inject: Text typed directly at cursor (clipboard untouched)")
-        self.mode_inject_btn.clicked.connect(lambda: self._set_output_mode("inject"))
+        self.mode_inject_btn.setToolTip("Inject: Type text directly at cursor")
+        self.mode_inject_btn.clicked.connect(lambda: self._toggle_output_mode("inject"))
         self._mode_buttons["inject"] = self.mode_inject_btn
         mode_layout.addWidget(self.mode_inject_btn)
 
@@ -1153,23 +1153,23 @@ class MainWindow(QMainWindow):
         self._tray_quit_action = QAction("Quit", self)
         self._tray_quit_action.triggered.connect(self.quit_app)
 
-        # Mode submenu with checkable actions
-        self._tray_mode_menu = QMenu("Mode", self)
+        # Mode submenu with independently checkable actions (can combine multiple)
+        self._tray_mode_menu = QMenu("Output To", self)
         self._tray_mode_actions = {}
 
-        self._tray_mode_app_action = QAction("App Only", self)
+        self._tray_mode_app_action = QAction("App", self)
         self._tray_mode_app_action.setCheckable(True)
-        self._tray_mode_app_action.triggered.connect(lambda: self._tray_set_mode("app_only"))
-        self._tray_mode_actions["app_only"] = self._tray_mode_app_action
+        self._tray_mode_app_action.triggered.connect(lambda: self._tray_toggle_mode("app"))
+        self._tray_mode_actions["app"] = self._tray_mode_app_action
 
         self._tray_mode_clipboard_action = QAction("Clipboard", self)
         self._tray_mode_clipboard_action.setCheckable(True)
-        self._tray_mode_clipboard_action.triggered.connect(lambda: self._tray_set_mode("clipboard"))
+        self._tray_mode_clipboard_action.triggered.connect(lambda: self._tray_toggle_mode("clipboard"))
         self._tray_mode_actions["clipboard"] = self._tray_mode_clipboard_action
 
-        self._tray_mode_inject_action = QAction("Text Injection", self)
+        self._tray_mode_inject_action = QAction("Inject", self)
         self._tray_mode_inject_action.setCheckable(True)
-        self._tray_mode_inject_action.triggered.connect(lambda: self._tray_set_mode("inject"))
+        self._tray_mode_inject_action.triggered.connect(lambda: self._tray_toggle_mode("inject"))
         self._tray_mode_actions["inject"] = self._tray_mode_inject_action
 
         # Build initial menu
@@ -1476,21 +1476,46 @@ class MainWindow(QMainWindow):
         self.config.quiet_mode = checked
         save_config(self.config)
 
-    def _set_output_mode(self, mode: str):
-        """Set the output mode and update button styles.
+    def _toggle_output_mode(self, mode: str):
+        """Toggle an output mode on/off.
 
         Args:
-            mode: One of "app_only", "clipboard", or "inject"
+            mode: One of "app", "clipboard", or "inject"
         """
-        self.config.output_mode = mode
+        if mode == "app":
+            self.config.output_to_app = not self.config.output_to_app
+        elif mode == "clipboard":
+            self.config.output_to_clipboard = not self.config.output_to_clipboard
+        elif mode == "inject":
+            self.config.output_to_inject = not self.config.output_to_inject
+        save_config(self.config)
+        self._update_mode_button_styles()
+
+    def _set_output_mode(self, mode: str, enabled: bool):
+        """Set a specific output mode to enabled or disabled.
+
+        Args:
+            mode: One of "app", "clipboard", or "inject"
+            enabled: Whether to enable or disable the mode
+        """
+        if mode == "app":
+            self.config.output_to_app = enabled
+        elif mode == "clipboard":
+            self.config.output_to_clipboard = enabled
+        elif mode == "inject":
+            self.config.output_to_inject = enabled
         save_config(self.config)
         self._update_mode_button_styles()
 
     def _update_mode_button_styles(self):
-        """Update mode button styles based on current selection."""
-        current_mode = self.config.output_mode
+        """Update mode button styles based on current enabled states."""
+        mode_states = {
+            "app": self.config.output_to_app,
+            "clipboard": self.config.output_to_clipboard,
+            "inject": self.config.output_to_inject,
+        }
         for mode_key, btn in self._mode_buttons.items():
-            if mode_key == current_mode:
+            if mode_states.get(mode_key, False):
                 btn.setStyleSheet(self._mode_btn_active_style)
             else:
                 btn.setStyleSheet(self._mode_btn_inactive_style)
@@ -1919,10 +1944,13 @@ class MainWindow(QMainWindow):
 
     def on_transcription_complete(self, result: TranscriptionResult):
         """Handle completed transcription."""
-        output_mode = self.config.output_mode
+        # Get output mode states
+        output_to_app = self.config.output_to_app
+        output_to_clipboard = self.config.output_to_clipboard
+        output_to_inject = self.config.output_to_inject
 
-        # Only show text in app for "app_only" mode
-        if output_mode == "app_only":
+        # Handle app output
+        if output_to_app:
             if self.append_mode:
                 existing_text = self.text_output.toPlainText()
                 if existing_text:
@@ -1947,7 +1975,7 @@ class MainWindow(QMainWindow):
                 # Replace text (normal mode)
                 self.text_output.setMarkdown(result.text)
         else:
-            # For clipboard/inject modes, clear the text area
+            # App output disabled - clear the text area
             self.text_output.setMarkdown("")
             self.append_mode = False
 
@@ -2010,37 +2038,40 @@ class MainWindow(QMainWindow):
         if hasattr(self, 'last_vad_duration'):
             del self.last_vad_duration
 
-        # Handle output based on mode
-        tray_state = "complete"
-        if output_mode == "clipboard":
-            # Copy to clipboard only
-            self._copy_to_clipboard_wayland(result.text)
-            tray_state = "clipboard_complete"
-        elif output_mode == "inject":
-            # Type directly at cursor (no clipboard)
-            self._inject_text_at_cursor(result.text)
-            tray_state = "inject_complete"
-        # app_only mode: no clipboard, no injection - text is already in app
+        # Handle outputs - execute all enabled modes
+        did_clipboard = False
+        did_inject = False
 
-        # Play beep (unless in Quiet Mode)
-        if output_mode != "app_only":
+        if output_to_clipboard:
+            self._copy_to_clipboard_wayland(result.text)
+            did_clipboard = True
+
+        if output_to_inject:
+            self._inject_text_at_cursor(result.text)
+            did_inject = True
+
+        # Play beep if any invisible action was performed (unless in Quiet Mode)
+        if did_clipboard or did_inject:
             feedback = get_feedback()
             feedback.enabled = self.config.beep_on_clipboard and not self.config.quiet_mode
             feedback.play_clipboard_beep()
 
         self.reset_ui()
 
-        # Enable append button only for app_only mode (where text is visible)
-        self.append_btn.setEnabled(output_mode == "app_only")
+        # Enable append button if app mode is enabled (text is visible)
+        self.append_btn.setEnabled(output_to_app)
 
-        # Show mode-specific complete state
+        # Determine tray state and status message based on what was done
+        # Only mention invisible actions (clipboard/inject) - app is visually obvious
+        tray_state = self._get_completion_tray_state(did_clipboard, did_inject)
         self._set_tray_state(tray_state)
 
         # In quiet mode for clipboard/inject, keep status visible indefinitely
         # (it will clear when user starts next recording)
         # Otherwise, auto-hide after 3 seconds
-        if not self.config.quiet_mode or output_mode == "app_only":
-            complete_states = ('complete', 'clipboard_complete', 'inject_complete')
+        invisible_action = did_clipboard or did_inject
+        if not self.config.quiet_mode or not invisible_action:
+            complete_states = ('complete', 'clipboard_complete', 'inject_complete', 'clipboard_inject_complete')
             QTimer.singleShot(3000, lambda: self._set_tray_state('idle') if self._tray_state in complete_states else None)
 
     def on_transcription_error(self, error: str):
@@ -2613,11 +2644,30 @@ class MainWindow(QMainWindow):
                 else:
                     self.show_window()
 
+    def _get_completion_tray_state(self, did_clipboard: bool, did_inject: bool) -> str:
+        """Determine the appropriate tray state based on what actions were performed.
+
+        Args:
+            did_clipboard: Whether text was copied to clipboard
+            did_inject: Whether text was injected at cursor
+
+        Returns:
+            Tray state string for _set_tray_state
+        """
+        if did_clipboard and did_inject:
+            return "clipboard_inject_complete"
+        elif did_clipboard:
+            return "clipboard_complete"
+        elif did_inject:
+            return "inject_complete"
+        else:
+            return "complete"
+
     def _set_tray_state(self, state: str):
         """Update tray icon and menu based on state.
 
         States: 'idle', 'recording', 'stopped', 'transcribing', 'complete',
-                'clipboard_complete', 'inject_complete'
+                'clipboard_complete', 'inject_complete', 'clipboard_inject_complete'
         """
         self._tray_state = state
         # Update icon and status label
@@ -2684,6 +2734,17 @@ class MainWindow(QMainWindow):
                 }
             """)
             self.status_label.show()
+        elif state == 'clipboard_inject_complete':
+            # Both clipboard and inject were performed
+            self.tray.setIcon(self._tray_icon_clipboard)  # Use clipboard icon as primary
+            self.status_label.setText("📋⌨ Copied + Injected")
+            self.status_label.setStyleSheet("""
+                QLabel {
+                    color: rgba(40, 167, 69, 0.7);
+                    font-size: 11px;
+                }
+            """)
+            self.status_label.show()
         # Update menu
         self._update_tray_menu()
 
@@ -2694,17 +2755,22 @@ class MainWindow(QMainWindow):
         # Show action is always available
         self._tray_menu.addAction(self._tray_show_action)
 
-        # Mode submenu - always available
+        # Mode submenu - always available (now with independent checkboxes)
         self._tray_mode_menu.clear()
-        current_mode = self.config.output_mode
+        mode_states = {
+            "app": self.config.output_to_app,
+            "clipboard": self.config.output_to_clipboard,
+            "inject": self.config.output_to_inject,
+        }
         for mode_key, action in self._tray_mode_actions.items():
-            action.setChecked(mode_key == current_mode)
+            action.setChecked(mode_states.get(mode_key, False))
             self._tray_mode_menu.addAction(action)
         self._tray_menu.addMenu(self._tray_mode_menu)
 
         self._tray_menu.addSeparator()
 
-        if self._tray_state == 'idle' or self._tray_state == 'complete':
+        complete_states = ('complete', 'clipboard_complete', 'inject_complete', 'clipboard_inject_complete')
+        if self._tray_state == 'idle' or self._tray_state in complete_states:
             self._tray_menu.addAction(self._tray_record_action)
         elif self._tray_state == 'recording':
             self._tray_menu.addAction(self._tray_stop_action)
@@ -2717,13 +2783,13 @@ class MainWindow(QMainWindow):
         self._tray_menu.addSeparator()
         self._tray_menu.addAction(self._tray_quit_action)
 
-    def _tray_set_mode(self, mode: str):
-        """Set output mode from tray menu.
+    def _tray_toggle_mode(self, mode: str):
+        """Toggle output mode from tray menu.
 
         Args:
-            mode: One of "app_only", "clipboard", or "inject"
+            mode: One of "app", "clipboard", or "inject"
         """
-        self._set_output_mode(mode)
+        self._toggle_output_mode(mode)
         # Update tray menu to reflect new checkmark
         self._update_tray_menu()
 

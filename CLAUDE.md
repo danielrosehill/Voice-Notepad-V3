@@ -268,8 +268,7 @@ AGC_MAX_GAIN_DB = 20.0        # Maximum boost to apply
 
 ### Planned
 
-- [x] **Auto-copy to clipboard**: Automatic clipboard copy after transcription (using wl-copy)
-- [x] **Auto-paste (text injection)**: Automatically paste transcription at cursor after copy (Settings → Behavior, uses ydotool)
+- [x] **Combinable output modes**: App, Clipboard, and Inject can be enabled in any combination (all three, any two, or just one)
 - [x] **Debian packaging**: Build as .deb for easy distribution
 - [ ] **S3 cloud backup**: Mirror local data to object storage
 - [ ] **Words per minute tracking**: Analyze speech patterns
@@ -583,6 +582,22 @@ In append mode:
 5. Click "Transcribe" to send all clips as a single combined recording
 
 All UI parameters (format, model, etc.) are applied to the final combined recording when you click Transcribe.
+
+### How do the output mode buttons work?
+
+The three output mode buttons (**App**, **Clipboard**, **Inject**) are independent toggles that can be combined in any way:
+
+| Combination | Behavior |
+|-------------|----------|
+| App only | Text appears in the app window |
+| Clipboard only | Text copied to clipboard (app window cleared) |
+| Inject only | Text typed at cursor via ydotool |
+| App + Clipboard | Text shown in app AND copied to clipboard |
+| App + Inject | Text shown in app AND typed at cursor |
+| Clipboard + Inject | Text copied to clipboard AND typed at cursor |
+| All three | Text shown in app, copied to clipboard, AND typed at cursor |
+
+**Status messages** only mention "invisible" actions (clipboard/inject). If text is shown in the app, that's visually obvious and doesn't need a status message.
 
 ## Related Resources
 

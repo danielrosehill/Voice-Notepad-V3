@@ -2,31 +2,13 @@
 
 import json
 import os
-from enum import Enum
 from pathlib import Path
 from dataclasses import dataclass, asdict, field
 from typing import Optional
 
 
-class OutputMode(Enum):
-    """Output mode for transcribed text.
-
-    Determines where the transcribed text is sent after processing.
-
-    APP_ONLY: Text appears in the app UI only (for viewing/editing).
-              Clipboard is not modified. No text injection.
-
-    CLIPBOARD: Text is copied to clipboard via wl-copy.
-               Does not appear in the app text area.
-               User can paste manually wherever needed.
-
-    INJECT: Text is typed directly at cursor via ydotool type.
-            Does not use or modify the clipboard.
-            Does not appear in the app text area.
-    """
-    APP_ONLY = "app_only"
-    CLIPBOARD = "clipboard"
-    INJECT = "inject"
+# Legacy OutputMode enum - kept for migration reference only
+# New system uses three independent booleans: output_to_app, output_to_clipboard, output_to_inject
 
 
 CONFIG_DIR = Path.home() / ".config" / "voice-notepad-v3"
@@ -155,14 +137,15 @@ class Config:
     beep_on_clipboard: bool = True  # Play beep when text copied/injected
     quiet_mode: bool = False  # Suppress all beeps (overrides above settings when True)
 
-    # Output mode: where transcribed text is sent
-    # - "app_only": Text appears in app UI only (clipboard untouched)
-    # - "clipboard": Text copied to clipboard (does not appear in app)
-    # - "inject": Text typed directly at cursor via ydotool (clipboard untouched, not in app)
-    output_mode: str = "clipboard"  # Default to clipboard for backward compatibility
+    # Output modes: where transcribed text is sent (can combine multiple)
+    # These are independent toggles - any combination is valid
+    output_to_app: bool = True       # Show text in app UI
+    output_to_clipboard: bool = True  # Copy to clipboard via wl-copy
+    output_to_inject: bool = False    # Type directly at cursor via ydotool
 
-    # Legacy field - kept for migration, use output_mode instead
-    auto_paste: bool = False
+    # Legacy fields - kept for migration
+    output_mode: str = ""  # Migrated to output_to_* booleans
+    auto_paste: bool = False  # Migrated to output_to_inject
 
     # Append mode behavior
     append_position: str = "end"  # "end" (append at document end) or "cursor" (insert at cursor)
@@ -297,10 +280,28 @@ def _apply_migrations(config: Config) -> Config:
     if config.user_phone and not config.phone_business:
         config.phone_business = config.user_phone
 
-    # Migration: auto_paste -> output_mode
-    # If auto_paste was enabled, migrate to inject mode
-    if config.auto_paste and config.output_mode == "clipboard":
-        config.output_mode = "inject"
+    # Migration: output_mode string -> output_to_* booleans
+    # Also handles legacy auto_paste field
+    if config.output_mode:
+        # Old output_mode was set, migrate to new booleans
+        if config.output_mode == "app_only":
+            config.output_to_app = True
+            config.output_to_clipboard = False
+            config.output_to_inject = False
+        elif config.output_mode == "clipboard":
+            config.output_to_app = False
+            config.output_to_clipboard = True
+            config.output_to_inject = False
+        elif config.output_mode == "inject":
+            config.output_to_app = False
+            config.output_to_clipboard = False
+            config.output_to_inject = True
+        # Clear legacy field after migration
+        config.output_mode = ""
+    elif config.auto_paste:
+        # Legacy auto_paste was enabled, migrate to inject mode
+        config.output_to_inject = True
+        config.auto_paste = False
 
     return config
 
