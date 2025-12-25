@@ -48,6 +48,19 @@ MODEL_TIERS = {
     },
 }
 
+# Short audio optimization: use minimal prompt for brief recordings
+# This reduces API overhead for quick notes (< 30 seconds)
+SHORT_AUDIO_THRESHOLD_SECONDS = 30.0
+
+SHORT_AUDIO_PROMPT = """Transcribe the audio. Apply only essential cleanup:
+- Add punctuation (periods, commas, question marks)
+- Capitalize sentences properly
+- Remove filler words (um, uh, like, you know)
+- Fix obvious grammar errors
+- Break into paragraphs if multiple distinct thoughts
+
+Output only the cleaned text, no commentary."""
+
 
 def get_model_display_name(model_id: str, provider: str = "gemini") -> str:
     """Get the human-readable display name for a model ID.
@@ -1033,18 +1046,25 @@ EMAIL_SIGNOFFS = [
 ]
 
 
-def build_cleanup_prompt(config: Config, use_prompt_library: bool = False) -> str:
+def build_cleanup_prompt(config: Config, use_prompt_library: bool = False, audio_duration_seconds: Optional[float] = None) -> str:
     """Build the cleanup prompt using the 3-layer architecture.
 
     Args:
         config: Configuration object
         use_prompt_library: If True, use the new prompt library system from database.
                            If False, use legacy hardcoded prompts (default for backward compat).
+        audio_duration_seconds: Optional audio duration. If provided and below
+                               SHORT_AUDIO_THRESHOLD_SECONDS, returns a minimal prompt
+                               for efficiency on short recordings.
 
     Layer 1 (Foundation): Always applied - basic rewriting (filler removal, punctuation, paragraphs)
     Layer 2 (Optional): User-selected enhancements (subheadings, markdown, etc.)
     Layer 3 (Format + Style): Format-specific instructions, formality, verbosity, writing sample
     """
+    # Short audio optimization: use minimal prompt for brief recordings
+    if audio_duration_seconds is not None and audio_duration_seconds < SHORT_AUDIO_THRESHOLD_SECONDS:
+        return SHORT_AUDIO_PROMPT
+
     # NEW: Use prompt library if enabled
     if use_prompt_library:
         return _build_prompt_from_library(config)

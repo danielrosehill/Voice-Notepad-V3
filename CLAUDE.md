@@ -128,6 +128,21 @@ OPENROUTER_API_KEY=your_key  # Alternative - access via OpenAI-compatible API
 
 AI Transcription Notepad uses a layered prompt system to transform speech into clean, well-formatted text. This is single-pass dictation processing: audio in, edited text out.
 
+#### Short Audio Optimization
+
+For recordings under 30 seconds, a minimal prompt is used instead of the full layered system. This reduces API overhead for quick notes while still applying essential cleanup:
+- Add punctuation (periods, commas, question marks)
+- Capitalize sentences properly
+- Remove filler words (um, uh, like, you know)
+- Fix obvious grammar errors
+- Break into paragraphs if multiple distinct thoughts
+
+This is a backend optimization—no UI changes or user action required. The threshold is defined by `SHORT_AUDIO_THRESHOLD_SECONDS` (30.0) in `config.py`.
+
+**Prompt size comparison:**
+- Full prompt: ~4,300 characters
+- Short audio prompt: ~300 characters
+
 #### Foundation Cleanup (Always Applied)
 
 The foundation layer is always applied to every transcription. This is what distinguishes AI Transcription Notepad from traditional speech-to-text. Defined in `config.py` as `FOUNDATION_PROMPT_SECTIONS`.
@@ -265,6 +280,7 @@ AGC_MAX_GAIN_DB = 20.0        # Maximum boost to apply
 - [x] **Append mode**: Record multiple clips and combine them before transcription
 - [x] **Prompt Stacks**: Layered prompt system for complex workflows (meeting notes + action items, technical docs, etc.)
 - [x] **Dev mode indicator**: Development version shows "(DEV)" in window title for visual distinction
+- [x] **Short audio optimization**: Minimal prompt for recordings < 30s (reduces API overhead by ~93%)
 
 ### Planned
 

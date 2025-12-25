@@ -137,6 +137,7 @@ class FileTranscriptionWidget(QWidget):
         super().__init__(parent)
         self.config = config
         self.selected_file: Optional[str] = None
+        self.selected_file_duration: Optional[float] = None  # For short audio optimization
         self.worker: Optional[FileTranscriptionWorker] = None
         self.last_audio_duration: Optional[float] = None
         self.last_vad_duration: Optional[float] = None
@@ -450,6 +451,7 @@ class FileTranscriptionWidget(QWidget):
         try:
             audio = AudioSegment.from_file(file_path)
             duration = len(audio) / 1000.0
+            self.selected_file_duration = duration  # Store for short audio optimization
             mins = int(duration // 60)
             secs = int(duration % 60)
             channels = "stereo" if audio.channels == 2 else "mono"
@@ -460,10 +462,12 @@ class FileTranscriptionWidget(QWidget):
             )
         except Exception as e:
             self.audio_info_label.setText(f"Could not read audio info: {e}")
+            self.selected_file_duration = None
 
     def clear_selection(self):
         """Clear the selected file."""
         self.selected_file = None
+        self.selected_file_duration = None
         self.file_path_edit.clear()
         self.audio_info_label.setText("")
         self.transcribe_btn.setEnabled(False)
@@ -504,8 +508,9 @@ class FileTranscriptionWidget(QWidget):
             return
 
         # Build cleanup prompt
+        # Pass audio duration for short audio optimization (minimal prompt for < 30s recordings)
         from .config import build_cleanup_prompt
-        cleanup_prompt = build_cleanup_prompt(config)
+        cleanup_prompt = build_cleanup_prompt(config, audio_duration_seconds=self.selected_file_duration)
 
         # Disable controls during transcription
         self.transcribe_btn.setEnabled(False)

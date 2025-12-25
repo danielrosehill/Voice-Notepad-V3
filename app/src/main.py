@@ -1811,7 +1811,8 @@ class MainWindow(QMainWindow):
         self._cleanup_worker('worker')
 
         # Start transcription worker
-        cleanup_prompt = build_cleanup_prompt(self.config)
+        # Pass audio duration for short audio optimization (minimal prompt for < 30s recordings)
+        cleanup_prompt = build_cleanup_prompt(self.config, audio_duration_seconds=self.last_audio_duration)
         self.worker = TranscriptionWorker(
             audio_data,
             provider,
@@ -1917,7 +1918,8 @@ class MainWindow(QMainWindow):
         self._cleanup_worker('worker')
 
         # Start transcription worker (VAD + compression + transcription all in background)
-        cleanup_prompt = build_cleanup_prompt(self.config)
+        # Pass audio duration for short audio optimization (minimal prompt for < 30s recordings)
+        cleanup_prompt = build_cleanup_prompt(self.config, audio_duration_seconds=self.last_audio_duration)
         self.worker = TranscriptionWorker(
             audio_data,
             provider,
