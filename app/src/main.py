@@ -1141,6 +1141,25 @@ class MainWindow(QMainWindow):
         self._tray_quit_action = QAction("Quit", self)
         self._tray_quit_action.triggered.connect(self.quit_app)
 
+        # Mode submenu with checkable actions
+        self._tray_mode_menu = QMenu("Mode", self)
+        self._tray_mode_actions = {}
+
+        self._tray_mode_app_action = QAction("App Only", self)
+        self._tray_mode_app_action.setCheckable(True)
+        self._tray_mode_app_action.triggered.connect(lambda: self._tray_set_mode("app_only"))
+        self._tray_mode_actions["app_only"] = self._tray_mode_app_action
+
+        self._tray_mode_clipboard_action = QAction("Clipboard", self)
+        self._tray_mode_clipboard_action.setCheckable(True)
+        self._tray_mode_clipboard_action.triggered.connect(lambda: self._tray_set_mode("clipboard"))
+        self._tray_mode_actions["clipboard"] = self._tray_mode_clipboard_action
+
+        self._tray_mode_inject_action = QAction("Text Injection", self)
+        self._tray_mode_inject_action.setCheckable(True)
+        self._tray_mode_inject_action.triggered.connect(lambda: self._tray_set_mode("inject"))
+        self._tray_mode_actions["inject"] = self._tray_mode_inject_action
+
         # Build initial menu
         self._update_tray_menu()
 
@@ -2638,6 +2657,15 @@ class MainWindow(QMainWindow):
 
         # Show action is always available
         self._tray_menu.addAction(self._tray_show_action)
+
+        # Mode submenu - always available
+        self._tray_mode_menu.clear()
+        current_mode = self.config.output_mode
+        for mode_key, action in self._tray_mode_actions.items():
+            action.setChecked(mode_key == current_mode)
+            self._tray_mode_menu.addAction(action)
+        self._tray_menu.addMenu(self._tray_mode_menu)
+
         self._tray_menu.addSeparator()
 
         if self._tray_state == 'idle' or self._tray_state == 'complete':
@@ -2652,6 +2680,16 @@ class MainWindow(QMainWindow):
 
         self._tray_menu.addSeparator()
         self._tray_menu.addAction(self._tray_quit_action)
+
+    def _tray_set_mode(self, mode: str):
+        """Set output mode from tray menu.
+
+        Args:
+            mode: One of "app_only", "clipboard", or "inject"
+        """
+        self._set_output_mode(mode)
+        # Update tray menu to reflect new checkmark
+        self._update_tray_menu()
 
     def _tray_stop_recording(self):
         """Stop recording from tray click - enters stopped state for user decision."""
