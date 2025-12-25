@@ -39,6 +39,7 @@ testing/
 
 # Private development files
 private/
+decisions/
 
 # Planning materials (developer notes)
 planning/

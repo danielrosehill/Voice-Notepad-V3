@@ -164,6 +164,8 @@ Create a release:
 
 Run `./build.sh` with no arguments to see all available commands.
 
+**Branching:** `main` is always stable. New features are developed on `feature/*` branches and merged to main when ready. No development releases are published—only stable releases from main.
+
 ## Configuration
 
 Add your API key via Settings in the app, or set environment variables:

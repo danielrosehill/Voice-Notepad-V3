@@ -5,6 +5,15 @@ All notable changes to AI Transcription Notepad will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+- **Development Workflow**: Adopted feature branch workflow for development
+  - `main` branch is always stable and releasable
+  - New features developed on `feature/*` branches
+  - No development releases—only stable releases from main
+  - Added branching note to README
+
 ## [1.6.0] - 2025-12-16
 
 ### Added
