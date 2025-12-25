@@ -1,0 +1,48 @@
+# Virtual environment
+.venv/
+venv/
+env/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+.build-cache/
+
+# Environment
+.env
+.env.local
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Test recordings
+*.wav
+*.mp3
+recordings/
+testing/
+
+# Private development files
+private/
+decisions/
+
+# Planning materials (developer notes)
+planning/
+
+# MkDocs build output
+site/

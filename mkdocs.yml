@@ -1,0 +1,69 @@
+site_name: Voice Notepad
+site_description: Desktop app for voice recording with AI-powered transcription and cleanup
+site_author: Daniel Rosehill
+repo_url: https://github.com/danielrosehill/Voice-Notepad
+repo_name: Voice-Notepad
+
+theme:
+  name: material
+  palette:
+    - scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.instant
+    - navigation.tracking
+    - navigation.sections
+    - navigation.expand
+    - toc.follow
+    - content.code.copy
+
+nav:
+  - Home: index.md
+  - Screenshots: screenshots.md
+  - User Manuals: user-manuals.md
+  - Getting Started:
+    - Installation: installation.md
+    - Configuration: configuration.md
+  - User Guide:
+    - Basic Usage: usage.md
+    - Features: features.md
+    - Keyboard Shortcuts: shortcuts.md
+    - Hotkey Setup: hotkey-setup.md
+  - Technical:
+    - Audio Pipeline: audio-pipeline.md
+    - Multimodal vs ASR: multimodal-vs-asr.md
+    - Technology Stack: stack.md
+  - Reference:
+    - Cost Tracking: cost-tracking.md
+    - Supported Models: models.md
+    - Troubleshooting: troubleshooting.md
+
+markdown_extensions:
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+  - admonition
+  - pymdownx.details
+  - tables
+  - toc:
+      permalink: true
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/danielrosehill/Voice-Notepad
+
+extra_javascript:
+  - https://unpkg.com/mermaid@10/dist/mermaid.min.js
