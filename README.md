@@ -88,22 +88,91 @@ cd Voice-Notepad && ./run.sh
 
 ---
 
-## How It Works
+## Dual-Pipeline Architecture
 
-<div align="center">
+Voice Notepad combines **local preprocessing** with **cloud transcription** for optimal cost and quality.
 
-**Local Preprocessing** → **Cloud Transcription**
+```mermaid
+flowchart LR
+    subgraph LOCAL["🖥️ Local Preprocessing"]
+        direction LR
+        A[🎤 Record<br/>48kHz] --> B[📊 AGC<br/>Normalize]
+        B --> C[🔇 VAD<br/>Remove Silence]
+        C --> D[📦 Compress<br/>16kHz mono]
+    end
 
-`Recording` → `AGC` → `VAD` → `Compress` → `Gemini API` → `Formatted Text`
+    subgraph CLOUD["☁️ Cloud Transcription"]
+        direction LR
+        E[📝 Prompt<br/>Concatenation] --> F[🤖 Gemini API<br/>Audio + Prompt]
+        F --> G[✨ Formatted<br/>Text]
+    end
 
-</div>
+    D --> E
 
-1. **Record** at device sample rate (typically 48kHz)
-2. **AGC** normalizes audio levels for consistent accuracy
-3. **VAD** strips silence (30-80% reduction) to lower costs
-4. **Compress** to 16kHz mono WAV
-5. **Send** audio + cleanup prompt to Gemini multimodal API
-6. **Receive** publication-ready text in a single response
+    style LOCAL fill:#e8f5e9,stroke:#4caf50,stroke-width:2px
+    style CLOUD fill:#e3f2fd,stroke:#2196f3,stroke-width:2px
+```
+
+| Stage | Component | Purpose |
+|-------|-----------|---------|
+| Local | **AGC** | Normalizes audio levels (target -3 dBFS) |
+| Local | **VAD** | Strips silence — typically 30-80% reduction |
+| Local | **Compress** | Downsamples to 16kHz mono WAV |
+| Cloud | **Prompt Concatenation** | Builds layered instructions |
+| Cloud | **Gemini API** | Single-pass transcription + cleanup |
+
+---
+
+## Prompt Concatenation System
+
+Voice Notepad uses a **layered prompt architecture** where instructions are concatenated at transcription time. This allows flexible, modular control over output formatting.
+
+```mermaid
+flowchart TB
+    subgraph FOUNDATION["🏗️ Foundation Layer (Always Applied)"]
+        F1[Remove filler words]
+        F2[Add punctuation]
+        F3[Fix grammar & spelling]
+        F4[Honor verbal commands]
+        F5[Handle background audio]
+    end
+
+    subgraph FORMAT["📋 Format Layer"]
+        FMT[Email / Todo / Meeting Notes<br/>Blog / Documentation / AI Prompt]
+    end
+
+    subgraph STYLE["🎨 Style Layer"]
+        S1[Formality<br/>Casual → Professional]
+        S2[Verbosity<br/>None → Maximum reduction]
+    end
+
+    subgraph PERSONAL["👤 Personalization"]
+        P1[Email signatures]
+        P2[User name]
+    end
+
+    FOUNDATION --> FORMAT
+    FORMAT --> STYLE
+    STYLE --> PERSONAL
+    PERSONAL --> OUTPUT[📤 Final Prompt]
+
+    style FOUNDATION fill:#fff3e0,stroke:#ff9800,stroke-width:2px
+    style FORMAT fill:#f3e5f5,stroke:#9c27b0,stroke-width:2px
+    style STYLE fill:#e8f5e9,stroke:#4caf50,stroke-width:2px
+    style PERSONAL fill:#e3f2fd,stroke:#2196f3,stroke-width:2px
+```
+
+### Prompt Stacks
+
+**Prompt Stacks** let you save and combine multiple prompt layers for recurring workflows:
+
+| Stack Example | Layers Combined |
+|---------------|-----------------|
+| **Meeting Notes + Actions** | Foundation + Meeting format + Action item extraction |
+| **Technical Documentation** | Foundation + Doc format + Code extraction + Markdown |
+| **Quick Email** | Foundation + Email format + Professional tone + Signature |
+
+Create custom stacks in the **Prompt Stacks** tab, then apply them with a single click.
 
 ---
 
@@ -180,4 +249,3 @@ This software was developed through AI-human collaboration. Code was generated b
 ## License
 
 MIT
-
