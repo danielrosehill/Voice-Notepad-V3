@@ -1633,14 +1633,45 @@ class MainWindow(QMainWindow):
         Args:
             mode: One of "app", "clipboard", or "inject"
         """
+        # Toggle the mode
         if mode == "app":
             self.config.output_to_app = not self.config.output_to_app
+            enabled = self.config.output_to_app
         elif mode == "clipboard":
             self.config.output_to_clipboard = not self.config.output_to_clipboard
+            enabled = self.config.output_to_clipboard
         elif mode == "inject":
             self.config.output_to_inject = not self.config.output_to_inject
+            enabled = self.config.output_to_inject
+        else:
+            enabled = False
+
         save_config(self.config)
         self._update_mode_button_styles()
+
+        # Audio feedback for mode toggle
+        if self.config.audio_feedback_mode == "beeps":
+            if enabled:
+                get_feedback().play_toggle_on_beep()
+            else:
+                get_feedback().play_toggle_off_beep()
+        elif self.config.audio_feedback_mode == "tts":
+            announcer = get_announcer()
+            if mode == "app":
+                if enabled:
+                    announcer.announce_app_enabled()
+                else:
+                    announcer.announce_app_disabled()
+            elif mode == "clipboard":
+                if enabled:
+                    announcer.announce_clipboard_enabled()
+                else:
+                    announcer.announce_clipboard_disabled()
+            elif mode == "inject":
+                if enabled:
+                    announcer.announce_inject_enabled()
+                else:
+                    announcer.announce_inject_disabled()
 
     def _set_output_mode(self, mode: str, enabled: bool):
         """Set a specific output mode to enabled or disabled.
@@ -1722,8 +1753,21 @@ class MainWindow(QMainWindow):
 
         When enabled, removes silence from audio before transcription.
         """
-        self.config.vad_enabled = state == Qt.CheckState.Checked.value
+        enabled = state == Qt.CheckState.Checked.value
+        self.config.vad_enabled = enabled
         save_config(self.config)
+
+        # Audio feedback for VAD toggle
+        if self.config.audio_feedback_mode == "beeps":
+            if enabled:
+                get_feedback().play_toggle_on_beep()
+            else:
+                get_feedback().play_toggle_off_beep()
+        elif self.config.audio_feedback_mode == "tts":
+            if enabled:
+                get_announcer().announce_vad_enabled()
+            else:
+                get_announcer().announce_vad_disabled()
 
     def _set_quick_format(self, format_key: str):
         """Handle quick format button clicks."""
@@ -1917,6 +1961,12 @@ class MainWindow(QMainWindow):
         """Start a new recording that will be appended to cached audio."""
         if self.recorder.is_recording:
             return  # Already recording
+
+        # Audio feedback for entering append mode (before recording starts)
+        if self.config.audio_feedback_mode == "beeps":
+            get_feedback().play_append_beep()
+        elif self.config.audio_feedback_mode == "tts":
+            get_announcer().announce_appending()
 
         # Enable append mode (keeps cached audio)
         self.append_mode = True
@@ -2587,6 +2637,17 @@ class MainWindow(QMainWindow):
 
         # Update display
         self._update_mic_display()
+
+        # Audio feedback for microphone change
+        if self.config.audio_feedback_mode == "beeps":
+            get_feedback().play_toggle_on_beep()
+        elif self.config.audio_feedback_mode == "tts":
+            # Get short display name for announcement
+            display_name = name
+            words = display_name.split()
+            if len(words) > 3:
+                display_name = " ".join(words[:3])
+            get_announcer().announce_microphone_changed(display_name)
 
     def _get_active_microphone_name(self) -> tuple[str, str]:
         """Get the name of the currently active microphone.

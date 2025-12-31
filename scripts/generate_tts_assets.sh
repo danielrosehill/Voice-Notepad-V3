@@ -40,12 +40,27 @@ declare -A ANNOUNCEMENTS=(
     ["complete"]="Complete"
     ["error"]="Error"
 
-    # Output modes
+    # Output modes (transcription result destination)
     ["text_in_app"]="Text in app"
     ["text_on_clipboard"]="Text on clipboard"
     ["clipboard"]="Clipboard"
     ["text_injected"]="Text injected"
     ["injection_failed"]="Injection failed"
+
+    # Output mode toggles (when user enables/disables output destinations)
+    ["app_enabled"]="App enabled"
+    ["app_disabled"]="App disabled"
+    ["clipboard_enabled"]="Clipboard enabled"
+    ["clipboard_disabled"]="Clipboard disabled"
+    ["inject_enabled"]="Inject enabled"
+    ["inject_disabled"]="Inject disabled"
+
+    # Settings toggles
+    ["vad_enabled"]="Voice activity detection enabled"
+    ["vad_disabled"]="Voice activity detection disabled"
+
+    # Append mode
+    ["appending"]="Appending"
 
     # Prompt stack changes
     ["format_updated"]="Format updated"

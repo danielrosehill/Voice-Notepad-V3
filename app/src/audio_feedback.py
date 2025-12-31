@@ -86,6 +86,11 @@ class AudioFeedback:
         self._start_beep = generate_beep(frequency=880, duration_ms=100, volume=0.12)  # A5, short
         self._stop_beep = generate_double_beep(freq1=880, freq2=660, duration_ms=80, volume=0.12)  # A5 down to E5
         self._clipboard_beep = self._generate_clipboard_beep()  # Quick triple beep for clipboard
+        # Toggle beeps - quick chirps to indicate state changes
+        self._toggle_on_beep = generate_double_beep(freq1=660, freq2=880, duration_ms=50, gap_ms=30, volume=0.10)  # Rising
+        self._toggle_off_beep = generate_double_beep(freq1=880, freq2=660, duration_ms=50, gap_ms=30, volume=0.10)  # Falling
+        # Append mode beep - distinct pattern (rising then sustained)
+        self._append_beep = generate_double_beep(freq1=660, freq2=990, duration_ms=70, gap_ms=40, volume=0.12)  # Low to high
 
     @property
     def enabled(self) -> bool:
@@ -120,6 +125,21 @@ class AudioFeedback:
         """Play the clipboard copy beep."""
         if self._enabled:
             self._play_async(self._clipboard_beep)
+
+    def play_toggle_on_beep(self):
+        """Play the toggle-on beep (rising tone) for enabling settings."""
+        if self._enabled:
+            self._play_async(self._toggle_on_beep)
+
+    def play_toggle_off_beep(self):
+        """Play the toggle-off beep (falling tone) for disabling settings."""
+        if self._enabled:
+            self._play_async(self._toggle_off_beep)
+
+    def play_append_beep(self):
+        """Play the append mode beep (distinct rising pattern)."""
+        if self._enabled:
+            self._play_async(self._append_beep)
 
     def _play_async(self, audio_data: bytes):
         """Play audio in a background thread to avoid blocking."""

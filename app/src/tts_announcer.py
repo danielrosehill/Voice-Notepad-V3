@@ -104,6 +104,13 @@ class TTSAnnouncer:
             "format_updated", "format_inference", "tone_updated", "style_updated", "verbatim_mode", "general_mode",
             # Audio feedback mode changes
             "tts_activated", "tts_deactivated",
+            # Output mode toggles
+            "app_enabled", "app_disabled", "clipboard_enabled", "clipboard_disabled",
+            "inject_enabled", "inject_disabled",
+            # Settings toggles
+            "vad_enabled", "vad_disabled",
+            # Append mode
+            "appending",
             # Settings/config actions
             "default_prompt_configured", "copied_to_clipboard",
             # Legacy (kept for compatibility)
@@ -361,6 +368,64 @@ class TTSAnnouncer:
     def announce_tts_deactivated(self) -> None:
         """Announce: TTS mode deactivated (switching to beeps or silent)."""
         self._play_async("tts_deactivated")
+
+    # -------------------------------------------------------------------------
+    # Output mode toggle announcements
+    # -------------------------------------------------------------------------
+
+    def announce_app_enabled(self) -> None:
+        """Announce: App output mode enabled."""
+        self._play_async("app_enabled")
+
+    def announce_app_disabled(self) -> None:
+        """Announce: App output mode disabled."""
+        self._play_async("app_disabled")
+
+    def announce_clipboard_enabled(self) -> None:
+        """Announce: Clipboard output mode enabled."""
+        self._play_async("clipboard_enabled")
+
+    def announce_clipboard_disabled(self) -> None:
+        """Announce: Clipboard output mode disabled."""
+        self._play_async("clipboard_disabled")
+
+    def announce_inject_enabled(self) -> None:
+        """Announce: Inject output mode enabled."""
+        self._play_async("inject_enabled")
+
+    def announce_inject_disabled(self) -> None:
+        """Announce: Inject output mode disabled."""
+        self._play_async("inject_disabled")
+
+    # -------------------------------------------------------------------------
+    # Settings toggle announcements
+    # -------------------------------------------------------------------------
+
+    def announce_vad_enabled(self) -> None:
+        """Announce: Voice activity detection enabled."""
+        self._play_async("vad_enabled")
+
+    def announce_vad_disabled(self) -> None:
+        """Announce: Voice activity detection disabled."""
+        self._play_async("vad_disabled")
+
+    def announce_microphone_changed(self, mic_name: str) -> None:
+        """Announce: Microphone changed.
+
+        Args:
+            mic_name: Display name of the new microphone
+        """
+        # Truncate long mic names for brevity
+        short_name = mic_name[:30] + "..." if len(mic_name) > 30 else mic_name
+        self.speak_text(f"Microphone: {short_name}", blocking=False)
+
+    # -------------------------------------------------------------------------
+    # Append mode announcements
+    # -------------------------------------------------------------------------
+
+    def announce_appending(self) -> None:
+        """Announce: Append mode activated (before recording starts)."""
+        self._play_async("appending")
 
     # -------------------------------------------------------------------------
     # Settings/config action announcements
