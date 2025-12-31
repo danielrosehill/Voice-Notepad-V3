@@ -139,13 +139,17 @@ class TTSAnnouncer:
         """Worker thread that processes the announcement queue."""
         while not self._stop_event.is_set():
             # Get next announcement from queue
+            announcement = None
             with self._queue_lock:
-                if not self._announcement_queue:
-                    # No announcements, sleep briefly
-                    self._queue_lock.release()
-                    time.sleep(0.05)
-                    continue
-                name, blocking, buffer_ms = self._announcement_queue.popleft()
+                if self._announcement_queue:
+                    announcement = self._announcement_queue.popleft()
+
+            if announcement is None:
+                # No announcements, sleep briefly and retry
+                time.sleep(0.05)
+                continue
+
+            name, blocking, buffer_ms = announcement
 
             # Check if we need a pause before playing
             current_time = time.time()
