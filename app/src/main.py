@@ -43,7 +43,7 @@ from PyQt6.QtWidgets import (
     QButtonGroup,
     QGroupBox,
 )
-from PyQt6.QtCore import Qt, QThread, pyqtSignal, QTimer, QSize, QPropertyAnimation, QEasingCurve
+from PyQt6.QtCore import Qt, QThread, pyqtSignal, QTimer, QSize, QPropertyAnimation, QEasingCurve, QEvent
 import time
 from PyQt6.QtGui import QIcon, QAction, QFont, QClipboard, QShortcut, QKeySequence, QActionGroup
 from PyQt6.QtWidgets import QGraphicsOpacityEffect
@@ -305,7 +305,7 @@ class MainWindow(QMainWindow):
         self.current_prompt_id = self.config.format_preset or "general"
 
         # Set window title (add DEV suffix if in dev mode)
-        title = "Voice Notepad"
+        title = "AI Transcription Utility"
         if os.environ.get("VOICE_NOTEPAD_DEV_MODE") == "1":
             title += " (DEV)"
         self.setWindowTitle(title)
@@ -337,7 +337,7 @@ class MainWindow(QMainWindow):
         self.status_label.setStyleSheet("color: rgba(220, 53, 69, 0.7); font-size: 11px;")
         self.status_label.show()
         self.tray.showMessage(
-            "Voice Notepad",
+            "AI Transcription Utility",
             error_msg,
             QSystemTrayIcon.MessageIcon.Warning,
             3000,
@@ -462,7 +462,7 @@ class MainWindow(QMainWindow):
 
         # Help menu
         help_menu = menubar.addMenu("Help")
-        about_action = QAction("About Voice Notepad...", self)
+        about_action = QAction("About AI Transcription Utility...", self)
         about_action.triggered.connect(self.show_about)
         help_menu.addAction(about_action)
 
@@ -900,11 +900,55 @@ class MainWindow(QMainWindow):
 
         layout.addLayout(presets_section_layout)
 
-        # Text output area with markdown rendering
+        # Text output area with markdown rendering (in a container with overlaid copy button)
+        text_container = QWidget()
+        text_container_layout = QVBoxLayout(text_container)
+        text_container_layout.setContentsMargins(0, 0, 0, 0)
+        text_container_layout.setSpacing(0)
+
+        # Frame to hold text output and overlay button
+        self.text_frame = QFrame()
+        self.text_frame.setStyleSheet("QFrame { border: none; }")
+        text_frame_layout = QVBoxLayout(self.text_frame)
+        text_frame_layout.setContentsMargins(0, 0, 0, 0)
+
         self.text_output = MarkdownTextWidget()
         self.text_output.setPlaceholderText("Transcription will appear here...")
         self.text_output.setFont(QFont("Sans", 11))
-        layout.addWidget(self.text_output, 1)
+        text_frame_layout.addWidget(self.text_output)
+
+        # Overlay copy button in top-right corner
+        copy_icon = QIcon.fromTheme(
+            "edit-copy", self.style().standardIcon(self.style().StandardPixmap.SP_DialogSaveButton)
+        )
+        self.copy_btn = QPushButton(copy_icon, "")
+        self.copy_btn.setFixedSize(36, 36)
+        self.copy_btn.setToolTip("Copy to clipboard")
+        self.copy_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.copy_btn.setStyleSheet("""
+            QPushButton {
+                background-color: rgba(255, 255, 255, 0.9);
+                border: 1px solid #ddd;
+                border-radius: 6px;
+                padding: 6px;
+            }
+            QPushButton:hover {
+                background-color: rgba(240, 240, 240, 0.95);
+                border-color: #bbb;
+            }
+            QPushButton:pressed {
+                background-color: rgba(220, 220, 220, 0.95);
+            }
+        """)
+        self.copy_btn.clicked.connect(self.copy_to_clipboard)
+        self.copy_btn.setParent(self.text_frame)
+        self.copy_btn.raise_()
+
+        # Install event filter to reposition copy button on resize
+        self.text_frame.installEventFilter(self)
+
+        text_container_layout.addWidget(self.text_frame)
+        layout.addWidget(text_container, 1)
 
         # Word count label
         self.word_count_label = QLabel("")
@@ -913,26 +957,6 @@ class MainWindow(QMainWindow):
 
         # Connect text changes to word count update
         self.text_output.textChanged.connect(self.update_word_count)
-
-        # Bottom buttons - centered Copy button
-        bottom = QHBoxLayout()
-        bottom.setSpacing(12)
-
-        bottom.addStretch()
-
-        # Copy button with clipboard icon (centered)
-        copy_icon = QIcon.fromTheme(
-            "edit-copy", self.style().standardIcon(self.style().StandardPixmap.SP_DialogSaveButton)
-        )
-        self.copy_btn = QPushButton(copy_icon, "Copy")
-        self.copy_btn.setMinimumHeight(38)
-        self.copy_btn.setMinimumWidth(100)
-        self.copy_btn.clicked.connect(self.copy_to_clipboard)
-        bottom.addWidget(self.copy_btn)
-
-        bottom.addStretch()
-
-        layout.addLayout(bottom)
 
         # Bottom status bar: microphone selector (left), model selector (right)
         status_bar = QHBoxLayout()
@@ -1148,50 +1172,65 @@ class MainWindow(QMainWindow):
         self._tray_menu = QMenu()
 
         # Store actions as instance variables for dynamic visibility
-        self._tray_show_action = QAction("Show", self)
+        # Using Unicode symbols for visual clarity in menus
+        self._tray_show_action = QAction("👁  Show Window", self)
         self._tray_show_action.triggered.connect(self.show_window)
 
-        self._tray_record_action = QAction("Start Recording", self)
+        self._tray_record_action = QAction("●  Start Recording", self)
         self._tray_record_action.triggered.connect(self.toggle_recording)
 
-        self._tray_stop_action = QAction("Stop Recording", self)
+        self._tray_stop_action = QAction("■  Stop Recording", self)
         self._tray_stop_action.triggered.connect(self._tray_stop_recording)
 
-        self._tray_pause_action = QAction("Pause Recording", self)
+        self._tray_pause_action = QAction("⏸  Pause Recording", self)
         self._tray_pause_action.triggered.connect(self._tray_pause_recording)
 
-        self._tray_send_action = QAction("Send", self)
+        self._tray_send_action = QAction("⬆  Send", self)
         self._tray_send_action.triggered.connect(self._tray_send_for_transcription)
 
-        self._tray_transcribe_action = QAction("Transcribe", self)
+        self._tray_transcribe_action = QAction("⬆  Transcribe", self)
         self._tray_transcribe_action.triggered.connect(self._tray_transcribe_stopped)
 
-        self._tray_delete_action = QAction("Delete Recording", self)
+        self._tray_delete_action = QAction("✕  Discard", self)
         self._tray_delete_action.triggered.connect(self._tray_delete_stopped)
 
-        self._tray_resume_action = QAction("Append Clip", self)
+        # Discard action for recording state (stops and discards without transcribing)
+        self._tray_discard_action = QAction("✕  Discard", self)
+        self._tray_discard_action.triggered.connect(self._tray_discard_recording)
+
+        self._tray_resume_action = QAction("+  Append Clip", self)
         self._tray_resume_action.triggered.connect(self._tray_resume_recording)
 
-        self._tray_quit_action = QAction("Quit", self)
+        # Utility actions
+        self._tray_copy_action = QAction("📋  Copy to Clipboard", self)
+        self._tray_copy_action.triggered.connect(self.copy_to_clipboard)
+
+        self._tray_history_action = QAction("📜  History", self)
+        self._tray_history_action.triggered.connect(self.show_history_window)
+
+        self._tray_settings_action = QAction("⚙  Settings", self)
+        self._tray_settings_action.triggered.connect(self.show_settings)
+
+        self._tray_quit_action = QAction("⏻  Quit", self)
         self._tray_quit_action.triggered.connect(self.quit_app)
 
         # Mode submenu with independently checkable actions (can combine multiple)
-        self._tray_mode_menu = QMenu("Output To", self)
+        self._tray_mode_menu = QMenu("📤  Output To", self)
         self._tray_mode_actions = {}
 
-        self._tray_mode_app_action = QAction("App", self)
+        self._tray_mode_app_action = QAction("🖥  App", self)
         self._tray_mode_app_action.setCheckable(True)
         self._tray_mode_app_action.triggered.connect(lambda: self._tray_toggle_mode("app"))
         self._tray_mode_actions["app"] = self._tray_mode_app_action
 
-        self._tray_mode_clipboard_action = QAction("Clipboard", self)
+        self._tray_mode_clipboard_action = QAction("📋  Clipboard", self)
         self._tray_mode_clipboard_action.setCheckable(True)
         self._tray_mode_clipboard_action.triggered.connect(
             lambda: self._tray_toggle_mode("clipboard")
         )
         self._tray_mode_actions["clipboard"] = self._tray_mode_clipboard_action
 
-        self._tray_mode_inject_action = QAction("Inject", self)
+        self._tray_mode_inject_action = QAction("⌨  Inject", self)
         self._tray_mode_inject_action.setCheckable(True)
         self._tray_mode_inject_action.triggered.connect(lambda: self._tray_toggle_mode("inject"))
         self._tray_mode_actions["inject"] = self._tray_mode_inject_action
@@ -2218,11 +2257,33 @@ class MainWindow(QMainWindow):
         self.last_vad_duration = vad_dur
 
     def on_transcription_complete(self, result: TranscriptionResult):
-        """Handle completed transcription."""
+        """Handle completed transcription.
+
+        PERFORMANCE: User-facing actions (clipboard, inject, app display) happen first.
+        Housekeeping tasks (database save, audio archive, cost tracking) are deferred
+        to avoid blocking the user from receiving their transcribed text.
+        """
         # Get output mode states
         output_to_app = self.config.output_to_app
         output_to_clipboard = self.config.output_to_clipboard
         output_to_inject = self.config.output_to_inject
+
+        # === PRIORITY 1: User-facing outputs (do these FIRST for lowest latency) ===
+
+        # Handle clipboard output IMMEDIATELY - this is what the user is waiting for
+        did_clipboard = False
+        if output_to_clipboard:
+            copy_to_clipboard(result.text)
+            did_clipboard = True
+
+        # Handle text injection (typing at cursor)
+        injection_failed = False
+        did_inject = False
+        if output_to_inject:
+            if self._inject_text_at_cursor(result.text):
+                did_inject = True
+            else:
+                injection_failed = True
 
         # Handle app output
         if output_to_app:
@@ -2263,82 +2324,6 @@ class MainWindow(QMainWindow):
             # App output disabled - clear the text area
             self.text_output.setMarkdown("")
             self.append_mode = False
-
-        # Get provider/model info
-        provider = self.config.selected_provider
-        if provider == "gemini":
-            model = self.config.gemini_model
-        else:  # openrouter
-            model = self.config.openrouter_model
-
-        # Determine cost: use actual cost from OpenRouter, or estimate for others
-        final_cost = 0.0
-        if result.actual_cost is not None:
-            # Use actual cost from OpenRouter API
-            final_cost = result.actual_cost
-        elif result.input_tokens > 0 or result.output_tokens > 0:
-            # Fall back to estimated cost
-            tracker = get_tracker()
-            final_cost = tracker.record_usage(
-                provider, model, result.input_tokens, result.output_tokens
-            )
-
-        # Get inference time from worker
-        inference_time_ms = self.worker.inference_time_ms if self.worker else 0
-
-        # Optionally archive audio
-        audio_file_path = None
-        if self.config.store_audio and hasattr(self, "last_audio_data"):
-            from datetime import datetime
-
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            audio_filename = f"{timestamp}.opus"
-            audio_path = AUDIO_ARCHIVE_DIR / audio_filename
-            if archive_audio(self.last_audio_data, str(audio_path)):
-                audio_file_path = str(audio_path)
-
-        # Save to database
-        audio_duration = getattr(self, "last_audio_duration", None)
-        vad_duration = getattr(self, "last_vad_duration", None)
-        prompt_length = len(self.worker.prompt) if self.worker else 0
-        db = get_db()
-        db.save_transcription(
-            provider=provider,
-            model=model,
-            transcript_text=result.text,
-            audio_duration_seconds=audio_duration,
-            inference_time_ms=inference_time_ms,
-            input_tokens=result.input_tokens,
-            output_tokens=result.output_tokens,
-            estimated_cost=final_cost,
-            audio_file_path=audio_file_path,
-            vad_audio_duration_seconds=vad_duration,
-            prompt_text_length=prompt_length,
-        )
-
-        # Clear stored audio data and retry state
-        self.has_failed_audio = False
-        if hasattr(self, "last_audio_data"):
-            del self.last_audio_data
-        if hasattr(self, "last_audio_duration"):
-            del self.last_audio_duration
-        if hasattr(self, "last_vad_duration"):
-            del self.last_vad_duration
-
-        # Handle outputs - execute all enabled modes
-        did_clipboard = False
-        did_inject = False
-
-        if output_to_clipboard:
-            copy_to_clipboard(result.text)
-            did_clipboard = True
-
-        injection_failed = False
-        if output_to_inject:
-            if self._inject_text_at_cursor(result.text):
-                did_inject = True
-            else:
-                injection_failed = True
 
         # Audio feedback for completion (beeps or TTS based on mode)
         if self.config.audio_feedback_mode == "beeps":
@@ -2386,6 +2371,84 @@ class MainWindow(QMainWindow):
                 if self._tray_state in complete_states
                 else None,
             )
+
+        # === PRIORITY 2: Housekeeping tasks (deferred to not block user) ===
+        # These run on the next event loop iteration via QTimer.singleShot(0)
+        self._schedule_post_transcription_tasks(result)
+
+    def _schedule_post_transcription_tasks(self, result: TranscriptionResult):
+        """Schedule housekeeping tasks to run after user-facing output is complete.
+
+        This defers database save, audio archiving, and cost tracking to the next
+        event loop iteration, ensuring the user gets their transcribed text
+        on the clipboard/in the app with minimal latency.
+        """
+        # Capture all state needed for deferred tasks
+        provider = self.config.selected_provider
+        model = (
+            self.config.gemini_model
+            if provider == "gemini"
+            else self.config.openrouter_model
+        )
+        audio_duration = getattr(self, "last_audio_duration", None)
+        vad_duration = getattr(self, "last_vad_duration", None)
+        prompt_length = len(self.worker.prompt) if self.worker else 0
+        inference_time_ms = self.worker.inference_time_ms if self.worker else 0
+        store_audio = self.config.store_audio
+        last_audio_data = getattr(self, "last_audio_data", None)
+
+        # Determine cost
+        final_cost = 0.0
+        if result.actual_cost is not None:
+            final_cost = result.actual_cost
+        elif result.input_tokens > 0 or result.output_tokens > 0:
+            tracker = get_tracker()
+            final_cost = tracker.record_usage(
+                provider, model, result.input_tokens, result.output_tokens
+            )
+
+        def do_housekeeping():
+            # Archive audio if enabled
+            audio_file_path = None
+            if store_audio and last_audio_data:
+                from datetime import datetime
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                audio_filename = f"{timestamp}.opus"
+                audio_path = AUDIO_ARCHIVE_DIR / audio_filename
+                if archive_audio(last_audio_data, str(audio_path)):
+                    audio_file_path = str(audio_path)
+
+            # Save to database
+            db = get_db()
+            db.save_transcription(
+                provider=provider,
+                model=model,
+                transcript_text=result.text,
+                audio_duration_seconds=audio_duration,
+                inference_time_ms=inference_time_ms,
+                input_tokens=result.input_tokens,
+                output_tokens=result.output_tokens,
+                estimated_cost=final_cost,
+                audio_file_path=audio_file_path,
+                vad_audio_duration_seconds=vad_duration,
+                prompt_text_length=prompt_length,
+            )
+
+            # Check if embedding batch processing is needed
+            if self.config.embedding_enabled and self.config.gemini_api_key:
+                self._check_embedding_batch()
+
+        # Clear stored audio data and retry state now (synchronously)
+        self.has_failed_audio = False
+        if hasattr(self, "last_audio_data"):
+            del self.last_audio_data
+        if hasattr(self, "last_audio_duration"):
+            del self.last_audio_duration
+        if hasattr(self, "last_vad_duration"):
+            del self.last_vad_duration
+
+        # Run housekeeping on next event loop iteration
+        QTimer.singleShot(0, do_housekeeping)
 
     def on_transcription_error(self, error: str):
         """Handle transcription error with automatic failover support."""
@@ -2951,19 +3014,25 @@ class MainWindow(QMainWindow):
         paste_clipboard_with_fallback(delay_before=0.1)
 
     def _inject_text_at_cursor(self, text: str) -> bool:
-        """Type text directly at cursor using ydotool type.
+        """Inject text at cursor by copying to clipboard and simulating Ctrl+V.
 
-        This method types text character-by-character without using the
-        clipboard. The clipboard contents are not modified.
+        This method preserves formatting (paragraph breaks, etc.) by using
+        clipboard paste rather than character-by-character typing.
+
+        Note: This temporarily modifies the clipboard contents.
 
         Requires ydotool installed and ydotoold daemon running.
 
         Returns:
             True if injection succeeded, False otherwise.
         """
-        from .text_injection import type_text
+        from .text_injection import paste_clipboard
 
-        return type_text(text, delay_before=0.1)
+        # Copy text to clipboard first
+        copy_to_clipboard(text)
+
+        # Simulate Ctrl+V to paste
+        return paste_clipboard(delay_before=0.1)
 
     def copy_to_clipboard(self):
         """Copy transcription to clipboard."""
@@ -3077,6 +3146,10 @@ class MainWindow(QMainWindow):
             vad_audio_duration_seconds=None,
             prompt_text_length=len(self.rewrite_worker.instruction) if self.rewrite_worker else 0,
         )
+
+        # Check if embedding batch processing is needed
+        if self.config.embedding_enabled and self.config.gemini_api_key:
+            self._check_embedding_batch()
 
         self.status_label.setText("Rewrite complete!")
         self.status_label.setStyleSheet("color: rgba(40, 167, 69, 0.7); font-size: 11px;")
@@ -3206,6 +3279,46 @@ class MainWindow(QMainWindow):
         self.history_window.raise_()
         self.history_window.activateWindow()
 
+    def _check_embedding_batch(self):
+        """Check if embedding batch processing is needed and run if so.
+
+        Embeddings are generated in batches of 100 transcripts to avoid
+        excessive API calls. This method checks if we have enough unembedded
+        transcripts and triggers background processing if needed.
+        """
+        try:
+            from .embedding_store import get_embedding_store, get_batch_processor
+
+            store = get_embedding_store()
+            if store is None:
+                return
+
+            # Check if we have enough unembedded transcripts
+            if not store.needs_batch_processing():
+                return
+
+            # Get or create batch processor
+            processor = get_batch_processor(self.config.gemini_api_key)
+            if processor is None:
+                return
+
+            # Skip if already processing
+            if processor.is_processing():
+                return
+
+            # Start batch processing in background
+            def on_batch_complete(count, error):
+                if error:
+                    print(f"Embedding batch error: {error}")
+                elif count > 0:
+                    print(f"Generated {count} embeddings")
+
+            processor.process_batch_async(callback=on_batch_complete)
+
+        except Exception as e:
+            # Non-critical error, just log it
+            print(f"Embedding batch check failed: {e}")
+
     def show_file_transcription_window(self):
         """Show the file transcription window (Beta feature)."""
         # Create window if it doesn't exist
@@ -3254,9 +3367,19 @@ class MainWindow(QMainWindow):
             (self.windowState() & ~Qt.WindowState.WindowMinimized) | Qt.WindowState.WindowActive
         )
 
+    def eventFilter(self, watched, event):
+        """Handle events from child widgets, particularly for repositioning the copy button."""
+        if watched == self.text_frame and event.type() == QEvent.Type.Resize:
+            # Reposition copy button to top-right corner of text frame
+            margin = 8
+            self.copy_btn.move(
+                self.text_frame.width() - self.copy_btn.width() - margin,
+                margin
+            )
+        return super().eventFilter(watched, event)
+
     def changeEvent(self, event):
         """Handle window state changes for proper taskbar activation on Wayland/KDE."""
-        from PyQt6.QtCore import QEvent
 
         if event.type() == QEvent.Type.ActivationChange:
             # When window is activated (e.g., via taskbar click), ensure it's visible and raised
@@ -3396,20 +3519,9 @@ class MainWindow(QMainWindow):
         # Show action is always available
         self._tray_menu.addAction(self._tray_show_action)
 
-        # Mode submenu - always available (now with independent checkboxes)
-        self._tray_mode_menu.clear()
-        mode_states = {
-            "app": self.config.output_to_app,
-            "clipboard": self.config.output_to_clipboard,
-            "inject": self.config.output_to_inject,
-        }
-        for mode_key, action in self._tray_mode_actions.items():
-            action.setChecked(mode_states.get(mode_key, False))
-            self._tray_mode_menu.addAction(action)
-        self._tray_menu.addMenu(self._tray_mode_menu)
-
         self._tray_menu.addSeparator()
 
+        # Recording actions - state dependent
         complete_states = (
             "complete",
             "clipboard_complete",
@@ -3423,15 +3535,36 @@ class MainWindow(QMainWindow):
             self._tray_menu.addAction(self._tray_stop_action)
             # Update pause action text based on current pause state
             if self.recorder.is_paused:
-                self._tray_pause_action.setText("Resume Recording")
+                self._tray_pause_action.setText("▶  Resume Recording")
             else:
-                self._tray_pause_action.setText("Pause Recording")
+                self._tray_pause_action.setText("⏸  Pause Recording")
             self._tray_menu.addAction(self._tray_pause_action)
+            # Discard option while recording
+            self._tray_menu.addAction(self._tray_discard_action)
         elif self._tray_state == "stopped":
             self._tray_menu.addAction(self._tray_transcribe_action)
             self._tray_menu.addAction(self._tray_resume_action)
             self._tray_menu.addAction(self._tray_delete_action)
         # transcribing state: no recording actions available
+
+        self._tray_menu.addSeparator()
+
+        # Mode submenu - always available (now with independent checkboxes)
+        self._tray_mode_menu.clear()
+        mode_states = {
+            "app": self.config.output_to_app,
+            "clipboard": self.config.output_to_clipboard,
+            "inject": self.config.output_to_inject,
+        }
+        for mode_key, action in self._tray_mode_actions.items():
+            action.setChecked(mode_states.get(mode_key, False))
+            self._tray_mode_menu.addAction(action)
+        self._tray_menu.addMenu(self._tray_mode_menu)
+
+        # Utility actions - always available
+        self._tray_menu.addAction(self._tray_copy_action)
+        self._tray_menu.addAction(self._tray_history_action)
+        self._tray_menu.addAction(self._tray_settings_action)
 
         self._tray_menu.addSeparator()
         self._tray_menu.addAction(self._tray_quit_action)
@@ -3499,6 +3632,56 @@ class MainWindow(QMainWindow):
         if self.recorder.is_recording:
             self.stop_and_transcribe()
 
+    def _tray_discard_recording(self):
+        """Discard current recording from tray menu (no confirmation dialog).
+
+        This is a quick-access discard that stops and deletes the recording
+        without showing a confirmation dialog. Use this for rapid workflow
+        when you know you don't want the recording.
+        """
+        if not self.recorder.is_recording and not self.recorder.is_paused:
+            return
+
+        # Audio feedback for discard (beeps or TTS based on mode)
+        if self.config.audio_feedback_mode == "beeps":
+            get_feedback().play_stop_beep()
+        elif self.config.audio_feedback_mode == "tts":
+            get_announcer().announce_discarded()
+
+        self.timer.stop()
+        self.recorder.stop_recording()
+        self._stop_recording_visual_effects()
+        self.recorder.clear()
+
+        # Clear accumulated segments
+        self.accumulated_segments = []
+        self.accumulated_duration = 0.0
+        self._update_segment_indicator()
+
+        # Reset state flags
+        self.append_mode = False
+        self.has_cached_audio = False
+        self.has_failed_audio = False
+
+        # Clear any failed audio data
+        if hasattr(self, "last_audio_data"):
+            del self.last_audio_data
+        if hasattr(self, "last_audio_duration"):
+            del self.last_audio_duration
+        if hasattr(self, "last_vad_duration"):
+            del self.last_vad_duration
+
+        self.reset_ui()
+        self._set_tray_state("idle")
+
+        # Show brief notification
+        self.tray.showMessage(
+            "Recording Discarded",
+            "Recording has been deleted.",
+            QSystemTrayIcon.MessageIcon.Information,
+            1500,
+        )
+
     def quit_app(self):
         """Quit the application."""
         # Clean up all worker threads first to prevent callbacks after quit
@@ -3521,7 +3704,7 @@ class MainWindow(QMainWindow):
         event.ignore()
         self.hide()
         self.tray.showMessage(
-            "Voice Notepad",
+            "AI Transcription Utility",
             "Minimized to system tray. Click icon to restore.",
             QSystemTrayIcon.MessageIcon.Information,
             2000,

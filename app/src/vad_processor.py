@@ -59,21 +59,15 @@ class VADProcessor:
             print(f"VAD: Failed to initialize TEN VAD: {e}")
             return None
 
-    def get_speech_timestamps(self, audio_data: bytes) -> list[dict]:
-        """
-        Get timestamps of speech segments in audio.
+    def _prepare_audio(self, audio_data: bytes) -> AudioSegment:
+        """Load and prepare audio for VAD processing.
 
         Args:
             audio_data: WAV audio bytes
 
         Returns:
-            List of dicts with 'start' and 'end' keys (in samples)
+            AudioSegment converted to 16kHz mono
         """
-        vad = self._get_vad()
-        if vad is None:
-            return []
-
-        # Load and prepare audio
         audio = AudioSegment.from_wav(io.BytesIO(audio_data))
 
         # Convert to 16kHz mono
@@ -81,6 +75,21 @@ class VADProcessor:
             audio = audio.set_channels(1)
         if audio.frame_rate != SAMPLE_RATE:
             audio = audio.set_frame_rate(SAMPLE_RATE)
+
+        return audio
+
+    def _get_speech_timestamps_from_audio(self, audio: AudioSegment) -> list[dict]:
+        """Get timestamps of speech segments from prepared audio.
+
+        Args:
+            audio: AudioSegment already converted to 16kHz mono
+
+        Returns:
+            List of dicts with 'start' and 'end' keys (in samples)
+        """
+        vad = self._get_vad()
+        if vad is None:
+            return []
 
         # Convert to numpy array (int16 for TEN VAD)
         samples = np.array(audio.get_array_of_samples(), dtype=np.int16)
@@ -132,9 +141,24 @@ class VADProcessor:
 
         return speeches
 
+    def get_speech_timestamps(self, audio_data: bytes) -> list[dict]:
+        """
+        Get timestamps of speech segments in audio.
+
+        Args:
+            audio_data: WAV audio bytes
+
+        Returns:
+            List of dicts with 'start' and 'end' keys (in samples)
+        """
+        audio = self._prepare_audio(audio_data)
+        return self._get_speech_timestamps_from_audio(audio)
+
     def remove_silence(self, audio_data: bytes) -> Tuple[bytes, float, float]:
         """
         Remove silence from audio using VAD.
+
+        PERFORMANCE: Loads audio only once and reuses for all operations.
 
         Args:
             audio_data: WAV audio bytes
@@ -142,26 +166,19 @@ class VADProcessor:
         Returns:
             Tuple of (processed_audio_bytes, original_duration_seconds, processed_duration_seconds)
         """
-        # Get original duration
-        original_audio = AudioSegment.from_wav(io.BytesIO(audio_data))
-        original_duration = len(original_audio) / 1000.0
+        # Load and prepare audio ONCE
+        audio = self._prepare_audio(audio_data)
+        original_duration = len(audio) / 1000.0
 
-        # Get speech timestamps
-        speeches = self.get_speech_timestamps(audio_data)
+        # Get speech timestamps using the already-prepared audio
+        speeches = self._get_speech_timestamps_from_audio(audio)
 
         if not speeches:
             # No speech detected, return original
             print("VAD: No speech detected, returning original audio")
             return audio_data, original_duration, original_duration
 
-        # Prepare audio for extraction
-        audio = AudioSegment.from_wav(io.BytesIO(audio_data))
-        if audio.channels > 1:
-            audio = audio.set_channels(1)
-        if audio.frame_rate != SAMPLE_RATE:
-            audio = audio.set_frame_rate(SAMPLE_RATE)
-
-        # Extract speech segments
+        # Extract speech segments (audio is already 16kHz mono from _prepare_audio)
         combined = AudioSegment.empty()
         for speech in speeches:
             start_ms = int(speech['start'] * 1000 / SAMPLE_RATE)

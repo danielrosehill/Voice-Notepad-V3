@@ -134,6 +134,12 @@ class TranscriptionDB:
             prompts.create_index('is_builtin')
             prompts.create_index('priority')
 
+            # Embeddings collection indexes (for semantic search)
+            embeddings = db.embeddings
+            embeddings.create_index('transcript_id')
+            embeddings.create_index('text_hash')
+            embeddings.create_index('created_at')
+
     def save_transcription(
         self,
         provider: str,
@@ -200,8 +206,19 @@ class TranscriptionDB:
         offset: int = 0,
         search: Optional[str] = None,
         provider: Optional[str] = None,
+        date_from: Optional[str] = None,
+        date_to: Optional[str] = None,
     ) -> List[TranscriptionRecord]:
-        """Get transcriptions with pagination and optional filtering."""
+        """Get transcriptions with pagination and optional filtering.
+
+        Args:
+            limit: Maximum number of records to return
+            offset: Number of records to skip
+            search: Optional text search (regex)
+            provider: Optional provider filter
+            date_from: Optional start date (ISO format: YYYY-MM-DD)
+            date_to: Optional end date (ISO format: YYYY-MM-DD)
+        """
         with self._lock:
             db = self._get_db()
 
@@ -214,10 +231,27 @@ class TranscriptionDB:
             if provider:
                 query['provider'] = provider
 
+            # Date filtering
+            if date_from or date_to:
+                timestamp_query = {}
+                if date_from:
+                    # Start of day
+                    timestamp_query['$gte'] = f"{date_from}T00:00:00"
+                if date_to:
+                    # End of day
+                    timestamp_query['$lte'] = f"{date_to}T23:59:59"
+                query['timestamp'] = timestamp_query
+
             cursor = db.transcriptions.find(query).sort('timestamp', -1).skip(offset).limit(limit)
             return [TranscriptionRecord.from_doc(doc) for doc in cursor]
 
-    def get_total_count(self, search: Optional[str] = None, provider: Optional[str] = None) -> int:
+    def get_total_count(
+        self,
+        search: Optional[str] = None,
+        provider: Optional[str] = None,
+        date_from: Optional[str] = None,
+        date_to: Optional[str] = None,
+    ) -> int:
         """Get total count of transcriptions (for pagination)."""
         with self._lock:
             db = self._get_db()
@@ -229,6 +263,15 @@ class TranscriptionDB:
 
             if provider:
                 query['provider'] = provider
+
+            # Date filtering
+            if date_from or date_to:
+                timestamp_query = {}
+                if date_from:
+                    timestamp_query['$gte'] = f"{date_from}T00:00:00"
+                if date_to:
+                    timestamp_query['$lte'] = f"{date_to}T23:59:59"
+                query['timestamp'] = timestamp_query
 
             return db.transcriptions.count_documents(query)
 

@@ -43,7 +43,7 @@ MODEL_TIERS = {
         "budget": "gemini-2.5-flash-lite",
     },
     "openrouter": {
-        "standard": "google/gemini-2.5-flash",
+        "standard": "google/gemini-3-flash-preview",
         "budget": "google/gemini-2.5-flash-lite",
     },
 }
@@ -91,26 +91,25 @@ class Config:
     gemini_api_key: str = ""
     openrouter_api_key: str = ""
 
-    # Selected model provider: "gemini" (recommended) or "openrouter"
-    # Gemini direct is recommended because it supports the dynamic "gemini-flash-latest"
-    # endpoint which always points to Google's latest Flash model automatically.
-    selected_provider: str = "gemini"
+    # Selected model provider: "gemini" or "openrouter"
+    # OpenRouter with Gemini 3 Flash Preview is recommended for best latency.
+    selected_provider: str = "openrouter"
 
     # Model names per provider
     gemini_model: str = "gemini-flash-latest"
-    openrouter_model: str = "google/gemini-2.5-flash"
+    openrouter_model: str = "google/gemini-3-flash-preview"
 
     # Primary and Fallback models - quick presets for switching with automatic failover
-    # Primary: Your main transcription model (default: Gemini Flash Latest)
-    # Fallback: Used automatically if primary fails (default: OpenRouter Gemini 2.5 Flash)
+    # Primary: Your main transcription model (default: Gemini 3 Flash Preview via OpenRouter)
+    # Fallback: Used automatically if primary fails (default: Gemini Flash Latest direct)
     # Using different providers for primary/fallback is recommended for resilience
-    primary_name: str = "Gemini Flash (Latest)"
-    primary_provider: str = "gemini"
-    primary_model: str = "gemini-flash-latest"
+    primary_name: str = "Gemini 3 Flash (OpenRouter)"
+    primary_provider: str = "openrouter"
+    primary_model: str = "google/gemini-3-flash-preview"
 
-    fallback_name: str = "Gemini 2.5 Flash (OpenRouter)"
-    fallback_provider: str = "openrouter"
-    fallback_model: str = "google/gemini-2.5-flash"
+    fallback_name: str = "Gemini Flash (Latest)"
+    fallback_provider: str = "gemini"
+    fallback_model: str = "gemini-flash-latest"
 
     # Enable automatic failover to fallback model if primary fails
     failover_enabled: bool = True
@@ -175,6 +174,14 @@ class Config:
     # Storage settings
     store_audio: bool = False  # Archive audio recordings
     vad_enabled: bool = True   # Enable Voice Activity Detection (silence removal)
+
+    # Semantic search / embeddings settings
+    # Embeddings enable semantic search in transcription history
+    # Uses Gemini text-embedding-004 (free, 1500 RPM)
+    embedding_enabled: bool = True  # Enable semantic search embeddings
+    embedding_model: str = "text-embedding-004"  # Gemini embedding model
+    embedding_dimensions: int = 768  # Embedding vector dimensions (768 = good balance)
+    embedding_batch_size: int = 100  # Process embeddings in batches of N transcripts
 
     # Audio feedback mode: "beeps" (default), "tts" (voice announcements), "silent" (no audio)
     audio_feedback_mode: str = "beeps"

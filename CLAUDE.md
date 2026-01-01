@@ -1,14 +1,14 @@
-# CLAUDE.md - AI Transcription Notepad V3
+# CLAUDE.md - AI Transcription Utility
 
 ## Project Overview
 
-AI Transcription Notepad V3 is a PyQt6 desktop application for voice recording with AI-powered transcription and cleanup. The key innovation is using **multimodal AI models** to transcribe audio AND clean it up in a single pass, eliminating the previous two-phase approach (ASR + LLM).
+AI Transcription Utility is a PyQt6 desktop application for voice recording with AI-powered transcription and cleanup. The key innovation is using **multimodal AI models** to transcribe audio AND clean it up in a single pass, eliminating the previous two-phase approach (ASR + LLM).
 
 ## Core Concept
 
 Instead of separate speech-to-text followed by text cleanup, this app sends audio directly to Google's Gemini multimodal models along with a cleanup prompt. The model handles both transcription and text cleanup simultaneously.
 
-**Why Gemini?** After extensive testing (~2000 transcriptions), Gemini Flash models have proven highly cost-effective for voice transcription—typically just a few dollars for heavy usage. The recommended `gemini-flash-latest` endpoint automatically points to Google's latest Flash model, eliminating manual updates. See [data/](data/) for anonymized performance benchmarks.
+**Why Gemini via OpenRouter?** After extensive testing (~2000 transcriptions), Gemini Flash models have proven highly cost-effective for voice transcription—typically just a few dollars for heavy usage. OpenRouter provides faster latency than direct Google API access. The default model is `google/gemini-3-flash-preview` via OpenRouter, with automatic failover to direct Gemini API if needed. See [data/](data/) for anonymized performance benchmarks.
 
 ## Architecture
 
@@ -52,7 +52,10 @@ Voice-Notepad-V3/
 - `cost_widget.py` - Cost tab for detailed spend tracking by time period
 - `database.py` - SQLite database for transcription history
 - `vad_processor.py` - Voice Activity Detection (silence removal) using TEN VAD
+- `history_window.py` - Standalone history window with tabbed View/Search interface
 - `history_widget.py` - History tab for browsing past transcriptions
+- `embeddings.py` - Gemini embedding client for semantic search
+- `embedding_store.py` - Vector storage and batch processing for embeddings
 - `analysis_widget.py` - Analytics tab for model performance stats
 - `models_widget.py` - Models tab showing available AI models by provider
 - `about_widget.py` - About tab with app info and keyboard shortcuts
@@ -112,12 +115,12 @@ The app supports global hotkeys that work system-wide, even when the window is m
 
 | Provider | Models | API Endpoint |
 |----------|--------|--------------|
-| **Gemini Direct** (Recommended) | `gemini-flash-latest`*, `gemini-2.5-flash`, `gemini-2.5-flash-lite`, `gemini-2.5-pro` | Google AI |
-| OpenRouter | `google/gemini-2.5-flash`, `google/gemini-2.5-flash-lite`, `google/gemini-2.0-flash-001` | OpenRouter |
+| **OpenRouter** (Recommended) | `google/gemini-3-flash-preview`*, `google/gemini-2.5-flash`, `google/gemini-2.5-flash-lite` | OpenRouter |
+| Gemini Direct | `gemini-flash-latest`, `gemini-2.5-flash`, `gemini-2.5-flash-lite`, `gemini-2.5-pro` | Google AI |
 
-**Gemini Direct** is the recommended provider because it supports the dynamic `gemini-flash-latest` endpoint, which always points to Google's latest Flash model automatically. This eliminates the need for manual model updates.
+**OpenRouter** is the recommended provider for lower latency. The default model is `google/gemini-3-flash-preview`, with automatic failover to Gemini Direct if needed.
 
-*`gemini-flash-latest` is only available through the direct Gemini API, not through OpenRouter.
+*Gemini 3 Flash is currently in preview. Fallback uses `gemini-flash-latest` which dynamically points to Google's latest stable Flash model.
 
 ## Development Guidelines
 
@@ -138,7 +141,7 @@ OPENROUTER_API_KEY=your_key  # Alternative - access via OpenAI-compatible API
 
 ### The Cleanup Prompt
 
-AI Transcription Notepad uses a layered prompt system to transform speech into clean, well-formatted text. This is single-pass dictation processing: audio in, edited text out.
+AI Transcription Utility uses a layered prompt system to transform speech into clean, well-formatted text. This is single-pass dictation processing: audio in, edited text out.
 
 #### Short Audio Optimization
 
@@ -157,7 +160,7 @@ This is a backend optimization—no UI changes or user action required. The thre
 
 #### Foundation Cleanup (Always Applied)
 
-The foundation layer is always applied to every transcription. This is what distinguishes AI Transcription Notepad from traditional speech-to-text. Defined in `config.py` as `FOUNDATION_PROMPT_SECTIONS`.
+The foundation layer is always applied to every transcription. This is what distinguishes AI Transcription Utility from traditional speech-to-text. Defined in `config.py` as `FOUNDATION_PROMPT_SECTIONS`.
 
 **1. Task Definition**
 - Transform audio into polished, publication-ready text—not a verbatim transcript
@@ -229,7 +232,7 @@ The prompt is further customized by:
 
 ### Email Personalization
 
-AI Transcription Notepad supports **multiple email addresses and signatures** for different contexts via Settings → Personalization:
+AI Transcription Utility supports **multiple email addresses and signatures** for different contexts via Settings → Personalization:
 
 - **Business Email**: Professional email address and signature for work communications
 - **Personal Email**: Personal email address and signature for casual communications
@@ -299,6 +302,8 @@ AGC_MAX_GAIN_DB = 20.0        # Maximum boost to apply
 - [x] **Dev mode indicator**: Development version shows "(DEV)" in window title for visual distinction
 - [x] **Short audio optimization**: Minimal prompt for recordings < 30s (reduces API overhead by ~93%)
 - [x] **Audio feedback modes**: Beeps, Voice (TTS), or Silent mode for recording/transcription events
+- [x] **Semantic search**: Find similar transcriptions using AI embeddings (Gemini text-embedding-004, free)
+- [x] **History window tabs**: Separate View History and Semantic Search tabs with date filtering
 
 ### Planned
 
@@ -441,7 +446,7 @@ The database tracks per-transcription metrics:
 
 ## Database Architecture
 
-AI Transcription Notepad uses **Mongita**, a pure Python implementation of MongoDB, for local data storage. This provides a document-based database that's more flexible than traditional SQL databases.
+AI Transcription Utility uses **Mongita**, a pure Python implementation of MongoDB, for local data storage. This provides a document-based database that's more flexible than traditional SQL databases.
 
 ### Why MongoDB/Mongita?
 
@@ -618,6 +623,44 @@ The Analytics tab includes an "Export Stats" button that exports anonymized stat
 - Daily activity breakdown
 
 Example exports are available in [data/](data/).
+
+## Semantic Search
+
+The History Window includes a **Semantic Search** tab that uses AI embeddings to find similar transcriptions. This is more powerful than text search—it understands meaning, not just keywords.
+
+**How it works:**
+1. Transcriptions are embedded in batches of 100 using Gemini's `text-embedding-004` model
+2. Embeddings are 768-dimensional vectors stored locally in MongoDB
+3. Search queries are also embedded, then compared using cosine similarity
+4. Results are ranked by similarity score (0-100%)
+
+**Features:**
+- **Semantic matching**: Find transcriptions by meaning, not just exact words
+- **Date filtering**: Optionally restrict search to a date range
+- **Similarity scores**: Each result shows how closely it matches your query
+- **Zero cost**: `text-embedding-004` is free (1500 requests/minute)
+
+**Configuration (in Settings):**
+```python
+embedding_enabled: bool = True        # Enable/disable semantic search
+embedding_model: str = "text-embedding-004"
+embedding_dimensions: int = 768       # Vector size
+embedding_batch_size: int = 100       # Transcripts per batch
+```
+
+**Batch Processing:**
+Embeddings are generated in the background when you accumulate 100+ unembedded transcripts. This approach:
+- Minimizes API calls
+- Doesn't block the UI
+- Processes oldest transcripts first
+
+**Status Display:**
+The Search tab shows embedding coverage: "Embeddings: 150 / 200 (75% coverage)"
+
+**Source Files:**
+- `embeddings.py` - Gemini embedding client
+- `embedding_store.py` - Vector storage and similarity search
+- `history_window.py` - UI for View History and Semantic Search tabs
 
 ## Audio Archival
 

@@ -303,10 +303,23 @@ class StackBuilderWidget(QWidget):
 
         container_layout.addLayout(top_row)
 
-        # Accordion sections row
+        # "Prompt Controllers" heading label
+        heading_label = QLabel("Prompt Controllers")
+        heading_label.setStyleSheet("""
+            QLabel {
+                font-size: 11px;
+                font-weight: bold;
+                color: #666;
+                padding: 4px 0 2px 0;
+            }
+        """)
+        heading_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        container_layout.addWidget(heading_label)
+
+        # Accordion sections row - center-aligned
         accordions_layout = QHBoxLayout()
         accordions_layout.setSpacing(8)
-        accordions_layout.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
+        accordions_layout.setAlignment(Qt.AlignmentFlag.AlignCenter | Qt.AlignmentFlag.AlignTop)
 
         # FORMAT section
         self.format_section = CollapsibleSection("Format")
@@ -332,7 +345,6 @@ class StackBuilderWidget(QWidget):
         self._setup_stacks_section()
         accordions_layout.addWidget(self.stacks_section, 0, Qt.AlignmentFlag.AlignTop)
 
-        accordions_layout.addStretch()
         container_layout.addLayout(accordions_layout)
 
         main_layout.addWidget(container)

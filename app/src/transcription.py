@@ -8,6 +8,24 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Optional
 
+# Pre-import SDK libraries at module load to avoid first-request latency
+# These imports happen once when the app starts, not on first transcription
+try:
+    from google import genai
+    from google.genai import types as genai_types
+    GEMINI_SDK_AVAILABLE = True
+except ImportError:
+    genai = None
+    genai_types = None
+    GEMINI_SDK_AVAILABLE = False
+
+try:
+    from openai import OpenAI
+    OPENAI_SDK_AVAILABLE = True
+except ImportError:
+    OpenAI = None
+    OPENAI_SDK_AVAILABLE = False
+
 logger = logging.getLogger(__name__)
 
 
@@ -50,20 +68,20 @@ class GeminiClient(TranscriptionClient):
 
     def _get_client(self):
         if self._client is None:
-            from google import genai
+            if not GEMINI_SDK_AVAILABLE:
+                raise ImportError("google-genai package not installed")
             self._client = genai.Client(api_key=self.api_key)
         return self._client
 
     def transcribe(self, audio_data: bytes, prompt: str) -> TranscriptionResult:
         """Transcribe audio using Gemini's multimodal capabilities."""
         client = self._get_client()
-        from google.genai import types
 
         response = client.models.generate_content(
             model=self.model,
             contents=[
                 prompt,
-                types.Part.from_bytes(data=audio_data, mime_type="audio/wav")
+                genai_types.Part.from_bytes(data=audio_data, mime_type="audio/wav")
             ]
         )
 
@@ -107,7 +125,6 @@ class GeminiClient(TranscriptionClient):
     def generate_title(self, text: str) -> str:
         """Generate a short title using Gemini with output constraints."""
         client = self._get_client()
-        from google.genai import types
 
         prompt = (
             "Generate a short, descriptive title for the following text. "
@@ -119,7 +136,7 @@ class GeminiClient(TranscriptionClient):
         response = client.models.generate_content(
             model=self.model,
             contents=[prompt],
-            config=types.GenerateContentConfig(
+            config=genai_types.GenerateContentConfig(
                 response_mime_type="text/plain",
                 max_output_tokens=20,  # Keep titles short
             )
@@ -145,7 +162,8 @@ class OpenRouterClient(TranscriptionClient):
 
     def _get_client(self):
         if self._client is None:
-            from openai import OpenAI
+            if not OPENAI_SDK_AVAILABLE:
+                raise ImportError("openai package not installed")
             self._client = OpenAI(
                 api_key=self.api_key,
                 base_url=self.OPENROUTER_BASE_URL,
