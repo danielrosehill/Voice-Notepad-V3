@@ -1706,6 +1706,39 @@ class MiscWidget(QWidget):
         optimization_layout.addLayout(short_audio_layout)
         layout.addWidget(optimization_group)
 
+        # Balance Polling group (OpenRouter)
+        polling_group = QGroupBox("OpenRouter Balance Polling")
+        polling_layout = QVBoxLayout(polling_group)
+        polling_layout.setSpacing(12)
+
+        polling_desc = QLabel(
+            "How often to check your OpenRouter balance in the background. "
+            "This runs independently of transcriptions to minimize latency."
+        )
+        polling_desc.setWordWrap(True)
+        polling_desc.setStyleSheet("color: #666; font-size: 11px;")
+        polling_layout.addWidget(polling_desc)
+
+        # Polling interval dropdown
+        interval_row = QHBoxLayout()
+        interval_label = QLabel("Poll interval:")
+        self.polling_interval_combo = QComboBox()
+        self.polling_interval_combo.addItems(["15 minutes", "30 minutes", "60 minutes"])
+
+        # Set current value
+        current_interval = getattr(self.config, 'balance_poll_interval_minutes', 30)
+        interval_map = {15: 0, 30: 1, 60: 2}
+        self.polling_interval_combo.setCurrentIndex(interval_map.get(current_interval, 1))
+
+        self.polling_interval_combo.currentIndexChanged.connect(self._save_polling_interval)
+
+        interval_row.addWidget(interval_label)
+        interval_row.addWidget(self.polling_interval_combo)
+        interval_row.addStretch()
+        polling_layout.addLayout(interval_row)
+
+        layout.addWidget(polling_group)
+
         layout.addStretch()
 
     def _save_bool(self, key: str, value: bool):
@@ -1714,6 +1747,18 @@ class MiscWidget(QWidget):
         save_config(self.config)
         if self.settings_parent:
             self.settings_parent.notify_saved()
+
+    def _save_polling_interval(self, index: int):
+        """Save the balance polling interval setting."""
+        interval_values = [15, 30, 60]
+        self.config.balance_poll_interval_minutes = interval_values[index]
+        save_config(self.config)
+        if self.settings_parent:
+            self.settings_parent.notify_saved()
+            # Restart the polling timer with new interval
+            main_window = self.settings_parent.parent()
+            if main_window and hasattr(main_window, '_start_balance_polling'):
+                main_window._start_balance_polling()
 
 
 class SettingsWidget(QWidget):

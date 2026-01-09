@@ -1314,6 +1314,13 @@ class MainWindow(QMainWindow):
         self._pulse_timer.timeout.connect(self._on_pulse_timer)
         self._pulse_phase = 0.0  # 0.0 to 1.0, tracks animation phase
 
+        # Balance polling timer - periodically fetches OpenRouter balance in background
+        # This replaces per-transcription cost lookups for lower latency
+        self._balance_poll_timer = QTimer()
+        self._balance_poll_timer.timeout.connect(self._poll_openrouter_balance)
+        # Start polling if OpenRouter is configured
+        self._start_balance_polling()
+
     def _on_pulse_timer(self):
         """Handle pulsation animation for record button."""
         import math
@@ -1365,6 +1372,55 @@ class MainWindow(QMainWindow):
         """Stop pulsating record button animation."""
         # Stop pulsation animation
         self._pulse_timer.stop()
+
+    def _start_balance_polling(self):
+        """Start or restart the OpenRouter balance polling timer.
+
+        Polls balance at the interval configured in settings (default 30 minutes).
+        This runs independently of transcriptions to minimize latency.
+        """
+        # Stop existing timer if running
+        self._balance_poll_timer.stop()
+
+        # Only poll if OpenRouter API key is configured
+        if not self.config.openrouter_api_key:
+            return
+
+        # Get interval from config (default 30 minutes)
+        interval_minutes = getattr(self.config, 'balance_poll_interval_minutes', 30)
+        interval_ms = interval_minutes * 60 * 1000
+
+        # Start the timer
+        self._balance_poll_timer.start(interval_ms)
+
+        # Also do an initial poll right away (in background)
+        QTimer.singleShot(1000, self._poll_openrouter_balance)
+
+    def _poll_openrouter_balance(self):
+        """Poll OpenRouter balance in background thread.
+
+        Updates the cached balance data used by the Cost widget.
+        This runs on a timer, not on each transcription.
+        """
+        if not self.config.openrouter_api_key:
+            return
+
+        def do_poll():
+            try:
+                from .openrouter_api import get_openrouter_api
+                api = get_openrouter_api(self.config.openrouter_api_key)
+                # These calls update the internal cache in openrouter_api
+                api.get_credits(use_cache=False)
+                api.get_key_info()
+            except Exception as e:
+                # Silently ignore polling errors - non-critical background task
+                import logging
+                logging.getLogger(__name__).debug(f"Balance poll failed: {e}")
+
+        # Run in background thread to avoid blocking UI
+        import threading
+        thread = threading.Thread(target=do_poll, daemon=True)
+        thread.start()
 
     def setup_shortcuts(self):
         """Set up keyboard shortcuts."""

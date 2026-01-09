@@ -463,39 +463,44 @@ The workflow is defined in `.github/workflows/release.yml`.
 
 ## Cost Tracking
 
-The app tracks API costs with **OpenRouter providing actual key-specific costs** from the API. Other providers use token-based estimates only.
+The app tracks API costs using **background polling** for OpenRouter balance and **token-based estimates** for per-transcription costs. This design minimizes transcription latency by avoiding API calls during the transcription flow.
 
-### OpenRouter (Recommended)
-OpenRouter provides the most accurate cost tracking:
-- **Key-specific usage**: Uses `/api/v1/key` endpoint to get usage for your specific API key (not account-wide)
-- **Account balance**: Displayed in status bar and Cost tab via `/api/v1/credits`
-- **Activity breakdown**: Model usage breakdown via `/api/v1/activity` endpoint (last 30 days)
+### Design Philosophy
 
-### Status Bar Display
-- Shows "Today: $X.XXXX (N) | Bal: $X.XX" when using OpenRouter
-- N = number of transcriptions today (from local database)
-- Bal = remaining OpenRouter credit balance
+To maximize transcription speed, cost tracking is decoupled from transcription:
+- **Per-transcription**: Uses token-based estimates (no API call)
+- **Account balance**: Polled periodically in background (configurable: 15/30/60 minutes)
+
+### OpenRouter Balance Polling
+
+OpenRouter balance and usage data is fetched via background timer:
+- **Poll interval**: Configurable in Settings → Misc (default: 30 minutes)
+- **Key-specific usage**: Uses `/api/v1/key` endpoint for your specific API key
+- **Account balance**: Via `/api/v1/credits` endpoint
+- **Activity breakdown**: Model usage via `/api/v1/activity` (last 30 days)
+
+The polling runs independently of transcriptions. Data is cached and displayed in the Cost tab.
 
 ### Cost Tab Features
-- **OpenRouter Balance**: Live account balance (cached 60 seconds)
-- **API Key Usage**: Daily, weekly, monthly spend for the configured key only
+- **OpenRouter Balance**: Account balance (updated via background polling)
+- **API Key Usage**: Daily, weekly, monthly spend for the configured key
 - **Model Breakdown**: Usage by model from OpenRouter's activity API
 - **Local Statistics**: Transcription count, words, and characters from local database
 
 ### Source Files
 - `openrouter_api.py` - OpenRouter API client for credits, key info, and activity
 - `cost_widget.py` - Cost tab UI with balance, key usage, and model breakdown
-- `cost_tracker.py` - Legacy token-based cost estimation (non-OpenRouter)
+- `cost_tracker.py` - Token-based cost estimation using MODEL_PRICING dict
 
 ### Database Fields for Cost Analysis
 The database tracks per-transcription metrics:
 - `input_tokens` / `output_tokens` - Token counts
-- `estimated_cost` - Actual cost (OpenRouter) or estimated (others)
+- `estimated_cost` - Estimated from tokens using MODEL_PRICING
 - `audio_duration_seconds` / `vad_audio_duration_seconds` - Audio length
 - `text_length` / `word_count` - Output transcript metrics
 - `prompt_text_length` - System prompt length sent to API
 
-**Note:** Only OpenRouter provides accurate key-specific cost data. Other providers show estimates based on token pricing which may not reflect actual billing.
+**Note:** Per-transcription costs are estimates based on token pricing. For accurate spend tracking, check the Cost tab which shows data from OpenRouter's API.
 
 ## Database Architecture
 

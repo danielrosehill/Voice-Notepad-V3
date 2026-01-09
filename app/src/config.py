@@ -272,6 +272,12 @@ class Config:
     # When enabled, recordings under 30 seconds use a compact prompt (~300 chars vs ~4300 chars)
     short_audio_prompt_enabled: bool = False  # Disabled by default - user must opt in
 
+    # OpenRouter balance polling settings
+    # Instead of fetching cost per-transcription (which adds latency),
+    # we poll the balance periodically in the background.
+    # Options: 15, 30, 60 minutes
+    balance_poll_interval_minutes: int = 30
+
     # Semantic search / embeddings settings
     # Embeddings enable semantic search in transcription history
     # Uses Gemini gemini-embedding-001 (free, 1500 RPM)

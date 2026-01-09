@@ -215,16 +215,9 @@ class OpenRouterClient(TranscriptionClient):
             if hasattr(response.usage, 'cost'):
                 actual_cost = getattr(response.usage, 'cost', None)
 
-        # If cost not in response, try to fetch from generation endpoint
-        if actual_cost is None and generation_id:
-            try:
-                from .openrouter_api import get_openrouter_api
-                api = get_openrouter_api(self.api_key)
-                gen_usage = api.get_generation_usage(generation_id)
-                if gen_usage:
-                    actual_cost = gen_usage.cost
-            except Exception as e:
-                logger.debug(f"Failed to get cost from OpenRouter: {e}")
+        # Note: We no longer fetch cost per-transcription to minimize latency.
+        # Cost is estimated from tokens using MODEL_PRICING in cost_tracker.py.
+        # Actual spend is polled periodically via OpenRouter's /key endpoint.
 
         return TranscriptionResult(
             text=response.choices[0].message.content,
@@ -267,17 +260,6 @@ class OpenRouterClient(TranscriptionClient):
             output_tokens = getattr(response.usage, 'completion_tokens', 0) or 0
             if hasattr(response.usage, 'cost'):
                 actual_cost = getattr(response.usage, 'cost', None)
-
-        # Try to fetch cost from generation endpoint if not in response
-        if actual_cost is None and generation_id:
-            try:
-                from .openrouter_api import get_openrouter_api
-                api = get_openrouter_api(self.api_key)
-                gen_usage = api.get_generation_usage(generation_id)
-                if gen_usage:
-                    actual_cost = gen_usage.cost
-            except Exception as e:
-                logger.debug(f"Failed to get cost from OpenRouter: {e}")
 
         return TranscriptionResult(
             text=response.choices[0].message.content,
