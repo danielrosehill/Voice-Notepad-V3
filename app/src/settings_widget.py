@@ -509,27 +509,45 @@ class PersonalizationWidget(QWidget):
         title.setFont(QFont("Sans", 14, QFont.Weight.Bold))
         layout.addWidget(title)
 
-        desc = QLabel("Customize your email signatures for business and personal communications.")
+        desc = QLabel("Configure your identity and email signatures for dictated emails.")
         desc.setWordWrap(True)
         desc.setStyleSheet("color: #666; margin-bottom: 12px;")
         layout.addWidget(desc)
 
-        # Form
-        form = QFormLayout()
-        form.setSpacing(12)
-        form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.ExpandingFieldsGrow)
+        # Identity Section (grouped like the email sections)
+        identity_group = QGroupBox("👤 Identity")
+        identity_layout = QFormLayout(identity_group)
+        identity_layout.setSpacing(12)
 
-        # Name
+        # Full Name
         self.name_edit = QLineEdit()
         self.name_edit.setText(self.config.user_name)
-        self.name_edit.setPlaceholderText("Your name")
+        self.name_edit.setPlaceholderText("Your full name (e.g., Daniel Rosehill)")
         self.name_edit.textChanged.connect(lambda: self._save_str("user_name", self.name_edit.text()))
-        form.addRow("Name:", self.name_edit)
+        identity_layout.addRow("Full Name:", self.name_edit)
 
-        layout.addLayout(form)
+        # Short Name (informal name for friends/family) with inline hint
+        short_name_container = QWidget()
+        short_name_layout = QVBoxLayout(short_name_container)
+        short_name_layout.setContentsMargins(0, 0, 0, 0)
+        short_name_layout.setSpacing(2)
+
+        self.short_name_edit = QLineEdit()
+        self.short_name_edit.setText(self.config.short_name)
+        self.short_name_edit.setPlaceholderText("Informal name (e.g., Daniel)")
+        self.short_name_edit.textChanged.connect(lambda: self._save_str("short_name", self.short_name_edit.text()))
+        short_name_layout.addWidget(self.short_name_edit)
+
+        short_name_info = QLabel("Used for casual sign-offs like 'Thanks, Daniel'")
+        short_name_info.setStyleSheet("color: #888; font-size: 10px;")
+        short_name_layout.addWidget(short_name_info)
+
+        identity_layout.addRow("Short Name:", short_name_container)
+
+        layout.addWidget(identity_group)
 
         # Business Email Section
-        business_group = QGroupBox("Business Email")
+        business_group = QGroupBox("💼 Business Email")
         business_layout = QFormLayout(business_group)
         business_layout.setSpacing(12)
 
@@ -551,7 +569,7 @@ class PersonalizationWidget(QWidget):
         layout.addWidget(business_group)
 
         # Personal Email Section
-        personal_group = QGroupBox("Personal Email")
+        personal_group = QGroupBox("📧 Personal Email")
         personal_layout = QFormLayout(personal_group)
         personal_layout.setSpacing(12)
 
@@ -618,7 +636,7 @@ class HotkeysWidget(QWidget):
         ("hotkey_transcribe", "Transcribe", "Transcribe cached audio only"),
         ("hotkey_clear", "Clear", "Clear cache / Delete recording"),
         ("hotkey_append", "Append", "Start new recording to add to cache"),
-        ("hotkey_pause", "Pause", "Pause / Resume current recording"),
+        ("hotkey_retake", "Retake", "Discard current and start fresh recording"),
     ]
 
     def __init__(self, config: Config, settings_parent=None, parent=None):
@@ -758,7 +776,7 @@ class HotkeysWidget(QWidget):
             "hotkey_transcribe": "f17",
             "hotkey_clear": "f18",
             "hotkey_append": "f19",
-            "hotkey_pause": "f20",
+            "hotkey_retake": "f20",
         }
 
         for field_name, default_value in defaults.items():
@@ -1786,23 +1804,24 @@ class SettingsWidget(QWidget):
         self.tabs.setDocumentMode(True)
 
         # Add sections as tabs - pass self as settings_parent for toast notifications
-        self.tabs.addTab(ModelSelectionWidget(self.config, settings_parent=self), "Model")
-        self.tabs.addTab(APIKeysWidget(self.config, settings_parent=self), "API Keys")
-        self.tabs.addTab(AudioMicWidget(self.config, self.recorder, settings_parent=self), "Mic")
-        self.tabs.addTab(BehaviorWidget(self.config, settings_parent=self), "Behavior")
-        self.tabs.addTab(PersonalizationWidget(self.config, settings_parent=self), "Personalization")
+        # Icons help users quickly identify tabs
+        self.tabs.addTab(ModelSelectionWidget(self.config, settings_parent=self), "🤖 Model")
+        self.tabs.addTab(APIKeysWidget(self.config, settings_parent=self), "🔑 API Keys")
+        self.tabs.addTab(AudioMicWidget(self.config, self.recorder, settings_parent=self), "🎤 Mic")
+        self.tabs.addTab(BehaviorWidget(self.config, settings_parent=self), "⚙️ Behavior")
+        self.tabs.addTab(PersonalizationWidget(self.config, settings_parent=self), "👤 Personal")
 
         # Translation tab
         self.translation_widget = TranslationWidget(self.config, settings_parent=self)
-        self.tabs.addTab(self.translation_widget, "Translation")
+        self.tabs.addTab(self.translation_widget, "🌐 Translation")
 
         # Hotkeys tab - connect signal to propagate changes
         self.hotkeys_widget = HotkeysWidget(self.config, settings_parent=self)
         self.hotkeys_widget.hotkeys_changed.connect(self.hotkeys_changed.emit)
-        self.tabs.addTab(self.hotkeys_widget, "Hotkeys")
+        self.tabs.addTab(self.hotkeys_widget, "⌨️ Hotkeys")
 
-        self.tabs.addTab(MiscWidget(self.config, settings_parent=self), "Misc")
-        self.tabs.addTab(DatabaseWidget(self.config, settings_parent=self), "Database")
+        self.tabs.addTab(MiscWidget(self.config, settings_parent=self), "🔧 Misc")
+        self.tabs.addTab(DatabaseWidget(self.config, settings_parent=self), "💾 Database")
 
         layout.addWidget(self.tabs)
 

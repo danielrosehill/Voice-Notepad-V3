@@ -95,6 +95,7 @@ from .cost_tracker import get_tracker
 from .history_window import HistoryWindow
 from .file_transcription_window import FileTranscriptionWindow
 from .analytics_widget import AnalyticsDialog
+from .analysis_widget import format_word_count
 from .settings_widget import SettingsDialog
 from .about_widget import AboutDialog
 from .audio_feedback import get_feedback
@@ -355,7 +356,7 @@ class MainWindow(QMainWindow):
         self.record_btn.setText("●")
         self.record_btn.setStyleSheet(self._record_btn_idle_style)
         self.record_btn.setEnabled(True)
-        self.pause_btn.setEnabled(False)
+        self.retake_btn.setEnabled(False)
         # Keep transcribe enabled if we have cached audio or failed audio
         if self.accumulated_segments:
             self.has_cached_audio = True
@@ -543,16 +544,16 @@ class MainWindow(QMainWindow):
         self.record_btn.clicked.connect(self.toggle_recording)
         control_bar.addWidget(self.record_btn)
 
-        self.pause_btn = QPushButton("⏸")  # Pause icon (changes to ▶ when paused)
-        self.pause_btn.setMinimumHeight(36)
-        self.pause_btn.setMinimumWidth(44)
-        self.pause_btn.setEnabled(False)
-        self.pause_btn.setToolTip(
-            "Pause\nPause/resume the current recording.\nOnly available while recording is active."
+        self.retake_btn = QPushButton("↺")  # Retake/restart icon
+        self.retake_btn.setMinimumHeight(36)
+        self.retake_btn.setMinimumWidth(44)
+        self.retake_btn.setEnabled(False)
+        self.retake_btn.setToolTip(
+            "Retake\nDiscard current recording and start fresh.\nQuickly restart without transcribing."
         )
-        self.pause_btn.setStyleSheet("""
+        self.retake_btn.setStyleSheet("""
             QPushButton {
-                background-color: #6c757d;
+                background-color: #fd7e14;
                 color: white;
                 border: none;
                 border-radius: 6px;
@@ -561,15 +562,15 @@ class MainWindow(QMainWindow):
                 padding: 0 8px;
             }
             QPushButton:hover {
-                background-color: #5a6268;
+                background-color: #e96b02;
             }
             QPushButton:disabled {
                 background-color: #6c757d;
                 color: #aaa;
             }
         """)
-        self.pause_btn.clicked.connect(self.toggle_pause)
-        control_bar.addWidget(self.pause_btn)
+        self.retake_btn.clicked.connect(self.retake_recording)
+        control_bar.addWidget(self.retake_btn)
 
         self.append_btn = QPushButton("+")  # Append/plus icon
         self.append_btn.setMinimumHeight(36)
@@ -881,6 +882,55 @@ class MainWindow(QMainWindow):
         self.stack_builder.prompt_changed.connect(self._on_stack_changed)
         presets_section_layout.addWidget(self.stack_builder)
 
+        # Personalization and Date row
+        personalization_layout = QHBoxLayout()
+        personalization_layout.setSpacing(10)
+
+        self.personalize_checkbox = QCheckBox("Personalize")
+        self.personalize_checkbox.setChecked(self.config.personalization_enabled)
+        self.personalize_checkbox.setToolTip(
+            "Include your name, email, and signature in the output.\n"
+            "Configure personalization details in Settings → Personalization.\n"
+            "Note: Always enabled for Email format."
+        )
+        self.personalize_checkbox.toggled.connect(self._on_personalize_toggled)
+        personalization_layout.addWidget(self.personalize_checkbox)
+
+        # Info button with tooltip for personalization
+        personalize_info_btn = QToolButton()
+        personalize_info_btn.setText("ⓘ")
+        personalize_info_btn.setStyleSheet("""
+            QToolButton {
+                border: none;
+                color: #888;
+                font-size: 14px;
+                padding: 0px 4px;
+            }
+            QToolButton:hover {
+                color: #555;
+            }
+        """)
+        personalize_info_btn.setToolTip(
+            "Personalization fields:\n"
+            "• Full Name - Used for formal sign-offs\n"
+            "• Short Name - Used for casual sign-offs\n"
+            "• Email address - Injected into emails\n"
+            "• Signature - Full signature block\n\n"
+            "Configure in Settings → Personalization"
+        )
+        personalization_layout.addWidget(personalize_info_btn)
+
+        personalization_layout.addSpacing(20)
+
+        self.add_date_checkbox = QCheckBox("Add Date")
+        self.add_date_checkbox.setChecked(self.config.add_date_enabled)
+        self.add_date_checkbox.setToolTip("Include today's date in the output where appropriate")
+        self.add_date_checkbox.toggled.connect(self._on_add_date_toggled)
+        personalization_layout.addWidget(self.add_date_checkbox)
+
+        personalization_layout.addStretch()
+        presets_section_layout.addLayout(personalization_layout)
+
         # TLDR modifier row
         tldr_layout = QHBoxLayout()
         tldr_layout.setSpacing(10)
@@ -922,6 +972,9 @@ class MainWindow(QMainWindow):
         self.text_output = MarkdownTextWidget()
         self.text_output.setPlaceholderText("Transcription will appear here...")
         self.text_output.setFont(QFont("Sans", 11))
+        # Reduce height to give more space to prompt controls
+        self.text_output.setMaximumHeight(150)
+        self.text_output.setMinimumHeight(80)
         text_frame_layout.addWidget(self.text_output)
 
         # Overlay copy button in top-right corner
@@ -1141,6 +1194,18 @@ class MainWindow(QMainWindow):
 
         feedback_footer.addStretch()
 
+        # All-time word count display
+        self.all_time_word_count_label = QLabel("")
+        self.all_time_word_count_label.setStyleSheet("""
+            QLabel {
+                color: #888;
+                font-size: 10px;
+            }
+        """)
+        self.all_time_word_count_label.setToolTip("Total words transcribed across all sessions")
+        feedback_footer.addWidget(self.all_time_word_count_label)
+        feedback_footer.addSpacing(12)
+
         # Open History link button
         history_link = QPushButton("Open History")
         history_link.setStyleSheet("""
@@ -1165,6 +1230,7 @@ class MainWindow(QMainWindow):
 
         # Set initial state based on config
         self._update_feedback_buttons()
+        self._update_all_time_word_count()
 
     def setup_tray(self):
         """Set up system tray icon."""
@@ -1244,8 +1310,8 @@ class MainWindow(QMainWindow):
         self._tray_stop_action = QAction("■  Stop Recording", self)
         self._tray_stop_action.triggered.connect(self._tray_stop_recording)
 
-        self._tray_pause_action = QAction("⏸  Pause Recording", self)
-        self._tray_pause_action.triggered.connect(self._tray_pause_recording)
+        self._tray_retake_action = QAction("↺  Retake", self)
+        self._tray_retake_action.triggered.connect(self._tray_retake_recording)
 
         self._tray_send_action = QAction("⬆  Send", self)
         self._tray_send_action.triggered.connect(self._tray_send_for_transcription)
@@ -1428,9 +1494,9 @@ class MainWindow(QMainWindow):
         record_shortcut = QShortcut(QKeySequence("Ctrl+R"), self)
         record_shortcut.activated.connect(self.toggle_recording)
 
-        # Ctrl+Space to pause/resume
-        pause_shortcut = QShortcut(QKeySequence("Ctrl+Space"), self)
-        pause_shortcut.activated.connect(self.toggle_pause_if_recording)
+        # Ctrl+Space to retake (discard and restart)
+        retake_shortcut = QShortcut(QKeySequence("Ctrl+Space"), self)
+        retake_shortcut.activated.connect(self.retake_recording)
 
         # Ctrl+Return to stop and transcribe
         stop_shortcut = QShortcut(QKeySequence("Ctrl+Return"), self)
@@ -1512,12 +1578,12 @@ class MainWindow(QMainWindow):
                 self._shortcut_append = QShortcut(seq, self)
                 self._shortcut_append.activated.connect(self._hotkey_append)
 
-        # Pause: pause/resume recording
-        if self.config.hotkey_pause:
-            seq = self._hotkey_to_qt_sequence(self.config.hotkey_pause)
+        # Retake: discard current and start fresh recording
+        if self.config.hotkey_retake:
+            seq = self._hotkey_to_qt_sequence(self.config.hotkey_retake)
             if seq:
-                self._shortcut_pause = QShortcut(seq, self)
-                self._shortcut_pause.activated.connect(self._hotkey_pause)
+                self._shortcut_retake = QShortcut(seq, self)
+                self._shortcut_retake.activated.connect(self._hotkey_retake)
 
     def _hotkey_to_qt_sequence(self, hotkey_str: str) -> QKeySequence | None:
         """Convert a hotkey string like 'f15' or 'ctrl+f15' to a QKeySequence."""
@@ -1568,7 +1634,7 @@ class MainWindow(QMainWindow):
         - transcribe: Transcribe cached audio only
         - clear: Clear cache/delete recording
         - append: Append (start new recording to append to cache)
-        - pause: Pause/resume current recording
+        - retake: Discard current and start fresh recording
 
         Each hotkey can be configured to any key from F13-F24, or disabled.
         """
@@ -1579,7 +1645,7 @@ class MainWindow(QMainWindow):
             "hotkey_transcribe",
             "hotkey_clear",
             "hotkey_append",
-            "hotkey_pause",
+            "hotkey_retake",
         ]:
             self.hotkey_listener.unregister(name)
 
@@ -1623,12 +1689,12 @@ class MainWindow(QMainWindow):
                 lambda: QTimer.singleShot(0, self._hotkey_append),
             )
 
-        # Pause: pause/resume current recording
-        if self.config.hotkey_pause:
+        # Retake: discard current and start fresh recording
+        if self.config.hotkey_retake:
             self.hotkey_listener.register(
-                "hotkey_pause",
-                self.config.hotkey_pause,
-                lambda: QTimer.singleShot(0, self._hotkey_pause),
+                "hotkey_retake",
+                self.config.hotkey_retake,
+                lambda: QTimer.singleShot(0, self._hotkey_retake),
             )
 
     def _hotkey_toggle_recording(self):
@@ -1668,15 +1734,9 @@ class MainWindow(QMainWindow):
         if not self.recorder.is_recording:
             self.append_to_transcription()
 
-    def _hotkey_pause(self):
-        """Handle Pause hotkey: Pause/resume current recording."""
-        if self.recorder.is_recording or self.recorder.is_paused:
-            self.toggle_pause()
-
-    def toggle_pause_if_recording(self):
-        """Toggle pause only if currently recording."""
-        if self.recorder.is_recording:
-            self.toggle_pause()
+    def _hotkey_retake(self):
+        """Handle Retake hotkey: Discard current and start fresh recording."""
+        self.retake_recording()
 
     def stop_if_recording(self):
         """Stop and transcribe only if currently recording."""
@@ -1837,6 +1897,38 @@ class MainWindow(QMainWindow):
         for mode_key, btn in self._feedback_buttons.items():
             btn.setChecked(mode_key == current_mode)
 
+    def _update_all_time_word_count(self):
+        """Update the all-time word count display in the footer."""
+        try:
+            db = get_db()
+            stats = db.get_all_time_stats()
+            total_words = stats.get("total_words", 0)
+            if total_words > 0:
+                formatted = format_word_count(total_words)
+                self.all_time_word_count_label.setText(f"Words transcribed: {formatted}")
+            else:
+                self.all_time_word_count_label.setText("")
+        except Exception:
+            # Silently ignore errors - the label just won't update
+            pass
+
+    def _on_personalize_toggled(self, checked: bool):
+        """Handle Personalize checkbox toggle.
+
+        When enabled, adds personalization elements (name, email, signature) to prompts.
+        Note: Always enabled automatically for email format preset.
+        """
+        self.config.personalization_enabled = checked
+        save_config(self.config)
+
+    def _on_add_date_toggled(self, checked: bool):
+        """Handle Add Date checkbox toggle.
+
+        When enabled, includes today's date in the output.
+        """
+        self.config.add_date_enabled = checked
+        save_config(self.config)
+
     def _on_tldr_toggled(self, checked: bool):
         """Handle TLDR checkbox toggle.
 
@@ -1970,7 +2062,7 @@ class MainWindow(QMainWindow):
 
             self.recorder.start_recording()
             self.record_btn.setText("●")
-            self.pause_btn.setEnabled(True)
+            self.retake_btn.setEnabled(True)
             self.append_btn.setEnabled(False)  # Disable append while recording
             self.stop_btn.setEnabled(True)  # Can stop recording to cache
             self.transcribe_btn.setEnabled(True)  # Can stop and transcribe immediately
@@ -1983,26 +2075,51 @@ class MainWindow(QMainWindow):
             # Update tray to recording state
             self._set_tray_state("recording")
 
-    def toggle_pause(self):
-        """Toggle pause state."""
-        if self.recorder.is_paused:
-            # TTS announcement (blocking) before resuming to prevent capture
-            if self.config.audio_feedback_mode == "tts":
-                get_announcer().announce_resumed()
-            self.recorder.resume_recording()
-            self.pause_btn.setText("⏸")
-            self.status_label.setText("Recording...")
-            self.status_label.setStyleSheet("color: rgba(220, 53, 69, 0.7); font-size: 11px;")
-            self.status_label.show()
-        else:
-            self.recorder.pause_recording()
-            # TTS announcement after pausing (mic not capturing)
-            if self.config.audio_feedback_mode == "tts":
-                get_announcer().announce_paused()
-            self.pause_btn.setText("▶")
-            self.status_label.setText("Paused")
-            self.status_label.setStyleSheet("color: rgba(255, 193, 7, 0.8); font-size: 11px;")
-            self.status_label.show()
+    def retake_recording(self):
+        """Discard current recording and immediately start a fresh one.
+
+        This is a quick workflow for restarting without transcribing -
+        useful when you want to redo a recording from scratch.
+        """
+        # Only available if we have something to discard
+        if not self.recorder.is_recording and not self.has_cached_audio:
+            return
+
+        # Audio feedback for retake
+        if self.config.audio_feedback_mode == "beeps":
+            if self.recorder.is_recording:
+                get_feedback().play_stop_beep()
+        elif self.config.audio_feedback_mode == "tts":
+            get_announcer().announce_discarded()
+
+        # Stop recording if active
+        self.timer.stop()
+        if self.recorder.is_recording:
+            self.recorder.stop_recording()
+            self._stop_recording_visual_effects()
+
+        # Clear everything (no confirmation for retake)
+        self.recorder.clear()
+        self.accumulated_segments = []
+        self.accumulated_duration = 0.0
+        self._update_segment_indicator()
+        self.append_mode = False
+        self.has_cached_audio = False
+        self.has_failed_audio = False
+
+        # Clear any failed audio data
+        if hasattr(self, "last_audio_data"):
+            del self.last_audio_data
+        if hasattr(self, "last_audio_duration"):
+            del self.last_audio_duration
+        if hasattr(self, "last_vad_duration"):
+            del self.last_vad_duration
+
+        # Reset UI briefly
+        self.reset_ui()
+
+        # Immediately start fresh recording
+        self.toggle_recording()
 
     def handle_stop_button(self):
         """Stop recording and cache audio without transcribing."""
@@ -2038,8 +2155,7 @@ class MainWindow(QMainWindow):
         self.record_btn.setText("●")
         self.record_btn.setStyleSheet(self._record_btn_idle_style)
         self.record_btn.setEnabled(True)
-        self.pause_btn.setEnabled(False)
-        self.pause_btn.setText("⏸")
+        self.retake_btn.setEnabled(True)  # Can retake (discard and start fresh)
         self.stop_btn.setEnabled(False)  # Can't stop when not recording
         self.append_btn.setEnabled(True)  # Can append more clips
         self.transcribe_btn.setEnabled(True)  # Can transcribe cached audio
@@ -2098,7 +2214,7 @@ class MainWindow(QMainWindow):
         # Disable all controls during transcription
         self.record_btn.setText("●")
         self.record_btn.setEnabled(False)
-        self.pause_btn.setEnabled(False)
+        self.retake_btn.setEnabled(False)
         self.append_btn.setEnabled(False)
         self.stop_btn.setEnabled(False)
         self.transcribe_btn.setEnabled(False)
@@ -2165,7 +2281,7 @@ class MainWindow(QMainWindow):
         # Disable all controls during transcription
         self.record_btn.setText("●")
         self.record_btn.setEnabled(False)
-        self.pause_btn.setEnabled(False)
+        self.retake_btn.setEnabled(False)
         self.append_btn.setEnabled(False)
         self.stop_btn.setEnabled(False)
         self.transcribe_btn.setEnabled(False)
@@ -2227,7 +2343,7 @@ class MainWindow(QMainWindow):
         self.record_btn.setText("●")
         self.record_btn.setStyleSheet(self._record_btn_idle_style)
         self.record_btn.setEnabled(True)
-        self.pause_btn.setEnabled(False)
+        self.retake_btn.setEnabled(False)
         self.append_btn.setEnabled(False)
         self.stop_btn.setEnabled(False)
         self.transcribe_btn.setEnabled(True)  # Enable for retry
@@ -2302,7 +2418,7 @@ class MainWindow(QMainWindow):
         self.record_btn.setText("●")
         self.record_btn.setStyleSheet(self._record_btn_idle_style)  # Reset to idle color
         self.record_btn.setEnabled(False)
-        self.pause_btn.setEnabled(False)
+        self.retake_btn.setEnabled(False)
         self.append_btn.setEnabled(False)
         self.stop_btn.setEnabled(False)
         self.transcribe_btn.setEnabled(False)
@@ -2546,6 +2662,9 @@ class MainWindow(QMainWindow):
             # Check if embedding batch processing is needed
             if self.config.embedding_enabled and self.config.gemini_api_key:
                 self._check_embedding_batch()
+
+            # Update all-time word count in footer
+            self._update_all_time_word_count()
 
         # Clear stored audio data and retry state now (synchronously)
         self.has_failed_audio = False
@@ -2942,8 +3061,7 @@ class MainWindow(QMainWindow):
         self.record_btn.setText("●")
         self.record_btn.setStyleSheet(self._record_btn_idle_style)
         self.record_btn.setEnabled(True)
-        self.pause_btn.setText("⏸")
-        self.pause_btn.setEnabled(False)
+        self.retake_btn.setEnabled(False)
         self.append_btn.setEnabled(False)
         self.stop_btn.setEnabled(False)
         self.transcribe_btn.setEnabled(False)
@@ -3238,6 +3356,9 @@ class MainWindow(QMainWindow):
         # Check if embedding batch processing is needed
         if self.config.embedding_enabled and self.config.gemini_api_key:
             self._check_embedding_batch()
+
+        # Update all-time word count in footer
+        self._update_all_time_word_count()
 
         self.status_label.setText("Rewrite complete!")
         self.status_label.setStyleSheet("color: rgba(40, 167, 69, 0.7); font-size: 11px;")
@@ -3621,17 +3742,13 @@ class MainWindow(QMainWindow):
         elif self._tray_state == "recording":
             self._tray_menu.addAction(self._tray_send_action)
             self._tray_menu.addAction(self._tray_stop_action)
-            # Update pause action text based on current pause state
-            if self.recorder.is_paused:
-                self._tray_pause_action.setText("▶  Resume Recording")
-            else:
-                self._tray_pause_action.setText("⏸  Pause Recording")
-            self._tray_menu.addAction(self._tray_pause_action)
+            self._tray_menu.addAction(self._tray_retake_action)
             # Discard option while recording
             self._tray_menu.addAction(self._tray_discard_action)
         elif self._tray_state == "stopped":
             self._tray_menu.addAction(self._tray_transcribe_action)
             self._tray_menu.addAction(self._tray_resume_action)
+            self._tray_menu.addAction(self._tray_retake_action)
             self._tray_menu.addAction(self._tray_delete_action)
         # transcribing state: no recording actions available
 
@@ -3709,11 +3826,9 @@ class MainWindow(QMainWindow):
         # Use append functionality to record more clips
         self.append_to_transcription()
 
-    def _tray_pause_recording(self):
-        """Pause/resume recording from tray menu."""
-        if not self.recorder.is_recording and not self.recorder.is_paused:
-            return
-        self.toggle_pause()
+    def _tray_retake_recording(self):
+        """Retake recording from tray menu - discard current and start fresh."""
+        self.retake_recording()
 
     def _tray_send_for_transcription(self):
         """Stop recording and send for transcription from tray menu."""

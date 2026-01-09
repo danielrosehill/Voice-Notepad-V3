@@ -243,7 +243,7 @@ class Config:
     # - transcribe: Transcribe cached audio without starting new recording
     # - clear: Clear/delete current recording and cached audio
     # - append: Start new recording that appends to cached audio
-    # - pause: Pause/resume current recording
+    # - retake: Discard current recording and start fresh
     #
     # Default mappings (F15-F20):
     hotkey_toggle: str = "f15"       # Simple toggle: start/stop+transcribe
@@ -251,7 +251,7 @@ class Config:
     hotkey_transcribe: str = "f17"   # Transcribe cached audio
     hotkey_clear: str = "f18"        # Clear/delete recording and cache
     hotkey_append: str = "f19"       # Append: start recording to add to cache
-    hotkey_pause: str = "f20"        # Pause/resume current recording
+    hotkey_retake: str = "f20"       # Retake: discard current and start fresh recording
 
     # Legacy hotkey fields - kept for migration, mapped to new fields
     hotkey_mode: str = ""  # Deprecated
@@ -344,7 +344,8 @@ class Config:
     # (e.g., Cover Letter, Email). Each prompt specifies which fields it uses.
 
     # Identity
-    user_name: str = ""
+    user_name: str = ""  # Full name (e.g., "Daniel Rosehill")
+    short_name: str = ""  # Informal name for friends/family (e.g., "Daniel")
     user_role: str = ""  # Job title/role
     business_name: str = ""
 
@@ -380,6 +381,14 @@ class Config:
     personal_signature: str = ""  # Migrated to signature_personal
     user_email: str = ""  # Migrated to email_business or email_personal
     email_signature: str = "Best regards"  # Migrated to signatures
+
+    # ==========================================================================
+    # PERSONALIZATION CONTROLS
+    # ==========================================================================
+    # When enabled, adds personalization elements (name, email, signature) to prompts
+    # Note: Always enabled automatically for email format preset
+    personalization_enabled: bool = False
+    add_date_enabled: bool = False  # When enabled, adds today's date to the prompt
 
     # ==========================================================================
     # TLDR MODIFIER
@@ -1411,6 +1420,10 @@ def build_cleanup_prompt(config: Config, use_prompt_library: bool = False, audio
         if section_key == "format_detection" and not getattr(config, 'prompt_infer_format', True):
             continue
         for instruction in section_data["instructions"]:
+            # Replace hardcoded name with configured short_name or user_name
+            if section_key == "user_details":
+                display_name = config.short_name or config.user_name or "the user"
+                instruction = instruction.replace("Daniel", display_name)
             lines.append(f"- {instruction}")
 
     # ===== LAYER 2: OPTIONAL ENHANCEMENTS =====
@@ -1489,31 +1502,57 @@ def build_cleanup_prompt(config: Config, use_prompt_library: bool = False, audio
                     "Use this as guidance for the output style:")
         lines.append(f"\n{config.writing_sample.strip()}\n")
 
-    # User-specific parameters (e.g., email signature)
-    if config.format_preset == "email":
+    # ===== PERSONALIZATION =====
+    # Add personalization for email format (always) or when explicitly enabled
+    is_email_format = config.format_preset == "email"
+    should_personalize = is_email_format or config.personalization_enabled
+
+    if should_personalize:
         # Use business email/signature by default, fall back to personal, then legacy fields
         sender_email = config.business_email or config.personal_email or config.user_email
         sender_signature = config.business_signature or config.personal_signature
+        # Use short_name for informal contexts, fall back to user_name
+        display_name = config.short_name or config.user_name
 
-        if config.user_name or sender_email or config.user_phone:
+        if display_name or sender_email or config.user_phone:
             lines.append("\n## User Profile")
             profile_parts = []
-            if config.user_name:
-                profile_parts.append(f"Name: {config.user_name}")
+            if display_name:
+                profile_parts.append(f"Name: {display_name}")
+            if config.user_name and config.user_name != display_name:
+                profile_parts.append(f"Full name: {config.user_name}")
             if sender_email:
                 profile_parts.append(f"Email: {sender_email}")
             if config.user_phone:
                 profile_parts.append(f"Phone: {config.user_phone}")
 
             profile_info = ", ".join(profile_parts)
-            lines.append(f"- Draft the email from the following person: {profile_info}")
+            if is_email_format:
+                lines.append(f"- Draft the email from the following person: {profile_info}")
+            else:
+                lines.append(f"- The user's profile information: {profile_info}")
+                lines.append("- Use this information where appropriate (e.g., signatures, sign-offs, author attribution).")
 
-        if sender_signature:
-            lines.append(f"- End the email with the following signature:\n\n{sender_signature}")
-        elif config.user_name:
-            # Fallback to simple sign-off if no signature configured
-            sign_off = config.email_signature or "Best regards"
-            lines.append(f"- End the email with the sign-off: \"{sign_off},\" followed by the sender's name: \"{config.user_name}\"")
+        if is_email_format:
+            # Email-specific signature handling
+            if sender_signature:
+                lines.append(f"- End the email with the following signature:\n\n{sender_signature}")
+            elif display_name:
+                # Fallback to simple sign-off if no signature configured
+                sign_off = config.email_signature or "Best regards"
+                lines.append(f"- End the email with the sign-off: \"{sign_off},\" followed by the sender's name: \"{display_name}\"")
+        elif sender_signature:
+            # For non-email formats, make signature available but don't force it
+            lines.append(f"- If a signature is appropriate for this content type, use:\n\n{sender_signature}")
+
+    # ===== DATE INJECTION =====
+    if config.add_date_enabled:
+        from datetime import date
+        today = date.today()
+        formatted_date = today.strftime("%B %d, %Y")  # e.g., "January 09, 2026"
+        lines.append("\n## Date")
+        lines.append(f"- Today's date is {formatted_date}.")
+        lines.append("- Include this date in the output where appropriate (e.g., letter headers, document dates, meeting notes).")
 
     # ===== TRANSLATION MODE =====
     if config.translation_mode_enabled:
@@ -1627,31 +1666,57 @@ def _build_prompt_from_library(config: Config) -> str:
                     "Use this as guidance for the output style:")
         lines.append(f"\n{config.writing_sample.strip()}\n")
 
-    # User-specific parameters (e.g., email signature)
-    if config.format_preset == "email":
+    # ===== PERSONALIZATION =====
+    # Add personalization for email format (always) or when explicitly enabled
+    is_email_format = config.format_preset == "email"
+    should_personalize = is_email_format or config.personalization_enabled
+
+    if should_personalize:
         # Use business email/signature by default, fall back to personal, then legacy fields
         sender_email = config.business_email or config.personal_email or config.user_email
         sender_signature = config.business_signature or config.personal_signature
+        # Use short_name for informal contexts, fall back to user_name
+        display_name = config.short_name or config.user_name
 
-        if config.user_name or sender_email or config.user_phone:
+        if display_name or sender_email or config.user_phone:
             lines.append("\n## User Profile")
             profile_parts = []
-            if config.user_name:
-                profile_parts.append(f"Name: {config.user_name}")
+            if display_name:
+                profile_parts.append(f"Name: {display_name}")
+            if config.user_name and config.user_name != display_name:
+                profile_parts.append(f"Full name: {config.user_name}")
             if sender_email:
                 profile_parts.append(f"Email: {sender_email}")
             if config.user_phone:
                 profile_parts.append(f"Phone: {config.user_phone}")
 
             profile_info = ", ".join(profile_parts)
-            lines.append(f"- Draft the email from the following person: {profile_info}")
+            if is_email_format:
+                lines.append(f"- Draft the email from the following person: {profile_info}")
+            else:
+                lines.append(f"- The user's profile information: {profile_info}")
+                lines.append("- Use this information where appropriate (e.g., signatures, sign-offs, author attribution).")
 
-        if sender_signature:
-            lines.append(f"- End the email with the following signature:\n\n{sender_signature}")
-        elif config.user_name:
-            # Fallback to simple sign-off if no signature configured
-            sign_off = config.email_signature or "Best regards"
-            lines.append(f"- End the email with the sign-off: \"{sign_off},\" followed by the sender's name: \"{config.user_name}\"")
+        if is_email_format:
+            # Email-specific signature handling
+            if sender_signature:
+                lines.append(f"- End the email with the following signature:\n\n{sender_signature}")
+            elif display_name:
+                # Fallback to simple sign-off if no signature configured
+                sign_off = config.email_signature or "Best regards"
+                lines.append(f"- End the email with the sign-off: \"{sign_off},\" followed by the sender's name: \"{display_name}\"")
+        elif sender_signature:
+            # For non-email formats, make signature available but don't force it
+            lines.append(f"- If a signature is appropriate for this content type, use:\n\n{sender_signature}")
+
+    # ===== DATE INJECTION =====
+    if config.add_date_enabled:
+        from datetime import date
+        today = date.today()
+        formatted_date = today.strftime("%B %d, %Y")  # e.g., "January 09, 2026"
+        lines.append("\n## Date")
+        lines.append(f"- Today's date is {formatted_date}.")
+        lines.append("- Include this date in the output where appropriate (e.g., letter headers, document dates, meeting notes).")
 
     # ===== TRANSLATION MODE =====
     if config.translation_mode_enabled:
