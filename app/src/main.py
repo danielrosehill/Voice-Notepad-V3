@@ -106,6 +106,9 @@ from .prompt_editor_window import PromptEditorWindow
 from .rewrite_dialog import RewriteDialog
 from .ui_utils import get_provider_icon, get_model_icon
 from .clipboard import copy_to_clipboard
+from .recent_panel import RecentPanel
+from .transcription_queue import TranscriptionQueue
+from .output_panel import DualOutputPanel
 
 
 class HotkeyEdit(QLineEdit):
@@ -957,58 +960,25 @@ class MainWindow(QMainWindow):
 
         layout.addLayout(presets_section_layout)
 
-        # Text output area with markdown rendering (in a container with overlaid copy button)
-        text_container = QWidget()
-        text_container_layout = QVBoxLayout(text_container)
-        text_container_layout.setContentsMargins(0, 0, 0, 0)
-        text_container_layout.setSpacing(0)
+        # Text output area - dual panel for queue mode
+        self.output_panel = DualOutputPanel()
+        self.output_panel.setMinimumHeight(120)
+        self.output_panel.copy_clicked.connect(self._on_output_copy_clicked)
+        self.output_panel.text_changed.connect(self.update_word_count)
+        layout.addWidget(self.output_panel, 1)
 
-        # Frame to hold text output and overlay button
-        self.text_frame = QFrame()
-        self.text_frame.setStyleSheet("QFrame { border: none; }")
-        text_frame_layout = QVBoxLayout(self.text_frame)
-        text_frame_layout.setContentsMargins(0, 0, 0, 0)
+        # Legacy compatibility: text_output points to slot1's text widget
+        self.text_output = self.output_panel.slot1.text_widget
 
-        self.text_output = MarkdownTextWidget()
-        self.text_output.setPlaceholderText("Transcription will appear here...")
-        self.text_output.setFont(QFont("Sans", 11))
-        # Reduce height to give more space to prompt controls
-        self.text_output.setMaximumHeight(150)
-        self.text_output.setMinimumHeight(80)
-        text_frame_layout.addWidget(self.text_output)
-
-        # Overlay copy button in top-right corner
-        copy_icon = QIcon.fromTheme(
-            "edit-copy", self.style().standardIcon(self.style().StandardPixmap.SP_DialogSaveButton)
+        # Create transcription queue
+        self.transcription_queue = TranscriptionQueue(
+            max_concurrent=self.config.queue_max_concurrent
         )
-        self.copy_btn = QPushButton(copy_icon, "")
-        self.copy_btn.setFixedSize(36, 36)
-        self.copy_btn.setToolTip("Copy to clipboard")
-        self.copy_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.copy_btn.setStyleSheet("""
-            QPushButton {
-                background-color: rgba(255, 255, 255, 0.9);
-                border: 1px solid #ddd;
-                border-radius: 6px;
-                padding: 6px;
-            }
-            QPushButton:hover {
-                background-color: rgba(240, 240, 240, 0.95);
-                border-color: #bbb;
-            }
-            QPushButton:pressed {
-                background-color: rgba(220, 220, 220, 0.95);
-            }
-        """)
-        self.copy_btn.clicked.connect(self.copy_to_clipboard)
-        self.copy_btn.setParent(self.text_frame)
-        self.copy_btn.raise_()
-
-        # Install event filter to reposition copy button on resize
-        self.text_frame.installEventFilter(self)
-
-        text_container_layout.addWidget(self.text_frame)
-        layout.addWidget(text_container, 1)
+        self.transcription_queue.item_started.connect(self._on_queue_item_started)
+        self.transcription_queue.item_complete.connect(self._on_queue_item_complete)
+        self.transcription_queue.item_error.connect(self._on_queue_item_error)
+        self.transcription_queue.item_status.connect(self._on_queue_item_status)
+        self.transcription_queue.queue_changed.connect(self._on_queue_changed)
 
         # Word count label
         self.word_count_label = QLabel("")
@@ -1128,6 +1098,17 @@ class MainWindow(QMainWindow):
         self.about_dialog = None
         self.history_window = None
         self.file_transcription_window = None
+
+        # Recent Transcriptions Panel (collapsible)
+        self.recent_panel = RecentPanel(
+            database=get_db(),
+            max_items=self.config.recent_panel_max_items,
+        )
+        self.recent_panel.set_collapsed(self.config.recent_panel_collapsed)
+        self.recent_panel.view_all_clicked.connect(self.show_history_window)
+        self.recent_panel.transcript_selected.connect(self._load_transcript_from_history)
+        self.recent_panel.transcript_copied.connect(self._on_recent_copied)
+        main_layout.addWidget(self.recent_panel)
 
         # Persistent audio feedback footer
         feedback_footer = QHBoxLayout()
@@ -1518,6 +1499,11 @@ class MainWindow(QMainWindow):
         history_shortcut = QShortcut(QKeySequence("Ctrl+H"), self)
         history_shortcut.activated.connect(self.show_history_window)
 
+        # Ctrl+1 through Ctrl+5 to copy recent transcriptions
+        for i in range(5):
+            shortcut = QShortcut(QKeySequence(f"Ctrl+{i + 1}"), self)
+            shortcut.activated.connect(lambda idx=i: self._copy_recent_by_index(idx))
+
         # Set up configurable in-focus hotkeys (F15, F16, etc.)
         self._setup_configurable_shortcuts()
 
@@ -1646,6 +1632,7 @@ class MainWindow(QMainWindow):
             "hotkey_clear",
             "hotkey_append",
             "hotkey_retake",
+            "hotkey_copy_last",
         ]:
             self.hotkey_listener.unregister(name)
 
@@ -1695,6 +1682,14 @@ class MainWindow(QMainWindow):
                 "hotkey_retake",
                 self.config.hotkey_retake,
                 lambda: QTimer.singleShot(0, self._hotkey_retake),
+            )
+
+        # Copy last: copy most recent transcription to clipboard
+        if self.config.hotkey_copy_last:
+            self.hotkey_listener.register(
+                "hotkey_copy_last",
+                self.config.hotkey_copy_last,
+                lambda: QTimer.singleShot(0, self._copy_last_transcription),
             )
 
     def _hotkey_toggle_recording(self):
@@ -2241,27 +2236,37 @@ class MainWindow(QMainWindow):
             self.reset_ui()
             return
 
-        # Clean up any previous worker before creating new one
-        self._cleanup_worker("worker")
-
-        # Start transcription worker
-        # Pass audio duration for short audio optimization (minimal prompt for < 30s recordings)
+        # Build cleanup prompt (pass audio duration for short audio optimization)
         cleanup_prompt = build_cleanup_prompt(
             self.config, audio_duration_seconds=self.last_audio_duration
         )
-        self.worker = TranscriptionWorker(
-            audio_data,
-            provider,
-            api_key,
-            model,
-            cleanup_prompt,
-            vad_enabled=self.config.vad_enabled,
-        )
-        self.worker.finished.connect(self.on_transcription_complete)
-        self.worker.error.connect(self.on_transcription_error)
-        self.worker.status.connect(self.on_worker_status)
-        self.worker.vad_complete.connect(self.on_vad_complete)
-        self.worker.start()
+
+        # Use queue for transcription (enables rapid dictation)
+        if self.config.queue_enabled:
+            self.transcription_queue.enqueue(
+                audio_data,
+                provider=provider,
+                api_key=api_key,
+                model=model,
+                prompt=cleanup_prompt,
+                vad_enabled=self.config.vad_enabled,
+            )
+        else:
+            # Legacy single-worker mode
+            self._cleanup_worker("worker")
+            self.worker = TranscriptionWorker(
+                audio_data,
+                provider,
+                api_key,
+                model,
+                cleanup_prompt,
+                vad_enabled=self.config.vad_enabled,
+            )
+            self.worker.finished.connect(self.on_transcription_complete)
+            self.worker.error.connect(self.on_transcription_error)
+            self.worker.status.connect(self.on_worker_status)
+            self.worker.vad_complete.connect(self.on_vad_complete)
+            self.worker.start()
 
         # TTS announcement for transcribing
         if self.config.audio_feedback_mode == "tts":
@@ -2311,26 +2316,36 @@ class MainWindow(QMainWindow):
             self._show_retry_ui()
             return
 
-        # Clean up any previous worker before creating new one
-        self._cleanup_worker("worker")
-
-        # Start transcription worker
-        # Use stored duration for short audio optimization
+        # Build cleanup prompt (use stored duration for short audio optimization)
         audio_duration = getattr(self, "last_audio_duration", None)
         cleanup_prompt = build_cleanup_prompt(self.config, audio_duration_seconds=audio_duration)
-        self.worker = TranscriptionWorker(
-            self.last_audio_data,
-            provider,
-            api_key,
-            model,
-            cleanup_prompt,
-            vad_enabled=self.config.vad_enabled,
-        )
-        self.worker.finished.connect(self.on_transcription_complete)
-        self.worker.error.connect(self.on_transcription_error)
-        self.worker.status.connect(self.on_worker_status)
-        self.worker.vad_complete.connect(self.on_vad_complete)
-        self.worker.start()
+
+        # Use queue for transcription (enables rapid dictation)
+        if self.config.queue_enabled:
+            self.transcription_queue.enqueue(
+                self.last_audio_data,
+                provider=provider,
+                api_key=api_key,
+                model=model,
+                prompt=cleanup_prompt,
+                vad_enabled=self.config.vad_enabled,
+            )
+        else:
+            # Legacy single-worker mode
+            self._cleanup_worker("worker")
+            self.worker = TranscriptionWorker(
+                self.last_audio_data,
+                provider,
+                api_key,
+                model,
+                cleanup_prompt,
+                vad_enabled=self.config.vad_enabled,
+            )
+            self.worker.finished.connect(self.on_transcription_complete)
+            self.worker.error.connect(self.on_transcription_error)
+            self.worker.status.connect(self.on_worker_status)
+            self.worker.vad_complete.connect(self.on_vad_complete)
+            self.worker.start()
 
         # TTS announcement for transcribing
         if self.config.audio_feedback_mode == "tts":
@@ -2445,27 +2460,37 @@ class MainWindow(QMainWindow):
             self.reset_ui()
             return
 
-        # Clean up any previous worker before creating new one
-        self._cleanup_worker("worker")
-
-        # Start transcription worker (VAD + compression + transcription all in background)
-        # Pass audio duration for short audio optimization (minimal prompt for < 30s recordings)
+        # Build cleanup prompt (pass audio duration for short audio optimization)
         cleanup_prompt = build_cleanup_prompt(
             self.config, audio_duration_seconds=self.last_audio_duration
         )
-        self.worker = TranscriptionWorker(
-            audio_data,
-            provider,
-            api_key,
-            model,
-            cleanup_prompt,
-            vad_enabled=self.config.vad_enabled,
-        )
-        self.worker.finished.connect(self.on_transcription_complete)
-        self.worker.error.connect(self.on_transcription_error)
-        self.worker.status.connect(self.on_worker_status)
-        self.worker.vad_complete.connect(self.on_vad_complete)
-        self.worker.start()
+
+        # Use queue for transcription (enables rapid dictation)
+        if self.config.queue_enabled:
+            self.transcription_queue.enqueue(
+                audio_data,
+                provider=provider,
+                api_key=api_key,
+                model=model,
+                prompt=cleanup_prompt,
+                vad_enabled=self.config.vad_enabled,
+            )
+        else:
+            # Legacy single-worker mode
+            self._cleanup_worker("worker")
+            self.worker = TranscriptionWorker(
+                audio_data,
+                provider,
+                api_key,
+                model,
+                cleanup_prompt,
+                vad_enabled=self.config.vad_enabled,
+            )
+            self.worker.finished.connect(self.on_transcription_complete)
+            self.worker.error.connect(self.on_transcription_error)
+            self.worker.status.connect(self.on_worker_status)
+            self.worker.vad_complete.connect(self.on_vad_complete)
+            self.worker.start()
 
         # TTS announcement for transcribing
         if self.config.audio_feedback_mode == "tts":
@@ -2665,6 +2690,9 @@ class MainWindow(QMainWindow):
 
             # Update all-time word count in footer
             self._update_all_time_word_count()
+
+            # Refresh recent panel
+            self.recent_panel.refresh()
 
         # Clear stored audio data and retry state now (synchronously)
         self.has_failed_audio = False
@@ -3577,14 +3605,8 @@ class MainWindow(QMainWindow):
         )
 
     def eventFilter(self, watched, event):
-        """Handle events from child widgets, particularly for repositioning the copy button."""
-        if watched == self.text_frame and event.type() == QEvent.Type.Resize:
-            # Reposition copy button to top-right corner of text frame
-            margin = 8
-            self.copy_btn.move(
-                self.text_frame.width() - self.copy_btn.width() - margin,
-                margin
-            )
+        """Handle events from child widgets."""
+        # DualOutputPanel handles its own layout, so we just pass through
         return super().eventFilter(watched, event)
 
     def changeEvent(self, event):
@@ -3885,16 +3907,203 @@ class MainWindow(QMainWindow):
             1500,
         )
 
+    # =========================================================================
+    # RECENT PANEL HELPERS
+    # =========================================================================
+
+    def _load_transcript_from_history(self, transcript_id: str):
+        """Load a transcript from history into the text output area."""
+        db = get_db()
+        record = db.get_transcription(transcript_id)
+        if record:
+            self.text_output.setMarkdown(record.transcript_text)
+
+    def _on_recent_copied(self, transcript_id: str):
+        """Handle copy from recent panel - play audio feedback."""
+        if self.config.audio_feedback_mode == "beeps":
+            get_feedback().play_clipboard_beep()
+        elif self.config.audio_feedback_mode == "tts":
+            get_announcer().announce_text_on_clipboard()
+
+    def _copy_last_transcription(self):
+        """Copy the most recent transcription to clipboard (for global hotkey)."""
+        text = self.recent_panel.get_most_recent_text()
+        if text:
+            copy_to_clipboard(text)
+            if self.config.audio_feedback_mode == "beeps":
+                get_feedback().play_clipboard_beep()
+            elif self.config.audio_feedback_mode == "tts":
+                get_announcer().announce_text_on_clipboard()
+
+    def _copy_recent_by_index(self, index: int):
+        """Copy recent transcript by index (0-4 for Ctrl+1 through Ctrl+5)."""
+        if self.recent_panel.copy_by_index(index):
+            if self.config.audio_feedback_mode == "beeps":
+                get_feedback().play_clipboard_beep()
+            elif self.config.audio_feedback_mode == "tts":
+                get_announcer().announce_text_on_clipboard()
+
+    # =========================================================================
+    # QUEUE AND OUTPUT PANEL HANDLERS
+    # =========================================================================
+
+    def _on_output_copy_clicked(self, slot_number: int):
+        """Handle copy button click from output panel."""
+        if self.config.audio_feedback_mode == "beeps":
+            get_feedback().play_clipboard_beep()
+        elif self.config.audio_feedback_mode == "tts":
+            get_announcer().announce_text_on_clipboard()
+
+    def _on_queue_item_started(self, item_id: str):
+        """Handle queue item starting transcription."""
+        self.output_panel.on_transcription_started(item_id)
+        self._set_tray_state("transcribing")
+
+    def _on_queue_item_complete(self, item_id: str, result):
+        """Handle queue item completion."""
+        # Display in the output panel
+        self.output_panel.on_transcription_complete(item_id, result.text)
+
+        # Handle output modes (clipboard, inject)
+        self._handle_queue_result_outputs(result)
+
+        # Schedule housekeeping
+        self._schedule_queue_housekeeping(item_id, result)
+
+        # Update UI state
+        if self.transcription_queue.is_empty():
+            self.reset_ui()
+            self._set_tray_state("complete")
+            QTimer.singleShot(3000, lambda: self._set_tray_state("idle") if self._tray_state == "complete" else None)
+
+    def _on_queue_item_error(self, item_id: str, error: str):
+        """Handle queue item error."""
+        self.output_panel.on_transcription_error(item_id, error)
+
+        # Show error notification
+        self.tray.showMessage(
+            "Transcription Error",
+            error[:100] + "..." if len(error) > 100 else error,
+            QSystemTrayIcon.MessageIcon.Warning,
+            3000,
+        )
+
+        if self.transcription_queue.is_empty():
+            self.reset_ui()
+            self._set_tray_state("idle")
+
+    def _on_queue_item_status(self, item_id: str, status: str):
+        """Handle queue item status update."""
+        self.output_panel.on_transcription_status(item_id, status)
+
+    def _on_queue_changed(self):
+        """Handle queue state change."""
+        status = self.transcription_queue.get_queue_status()
+        self.output_panel.update_queue_status(
+            status["pending_count"],
+            status["active_count"]
+        )
+
+    def _handle_queue_result_outputs(self, result):
+        """Handle clipboard and inject outputs for a queue result."""
+        output_to_clipboard = self.config.output_to_clipboard
+        output_to_inject = self.config.output_to_inject
+
+        did_clipboard = False
+        did_inject = False
+
+        if output_to_clipboard:
+            copy_to_clipboard(result.text)
+            did_clipboard = True
+
+        if output_to_inject:
+            if self._inject_text_at_cursor(result.text):
+                did_inject = True
+
+        # Audio feedback
+        if self.config.audio_feedback_mode == "beeps":
+            if did_clipboard or did_inject:
+                get_feedback().play_clipboard_beep()
+        elif self.config.audio_feedback_mode == "tts":
+            if did_clipboard:
+                get_announcer().announce_text_on_clipboard()
+            elif did_inject:
+                get_announcer().announce_text_injected()
+            else:
+                get_announcer().announce_complete()
+
+    def _schedule_queue_housekeeping(self, item_id: str, result):
+        """Schedule housekeeping tasks for a completed queue item."""
+        # Get queue item for metadata
+        item = None
+        for completed in self.transcription_queue.completed:
+            if completed.id == item_id:
+                item = completed
+                break
+
+        if not item:
+            return
+
+        provider = item.settings.provider
+        model = item.settings.model
+        audio_duration = item.original_duration
+        vad_duration = item.vad_duration
+        prompt_length = len(item.settings.prompt)
+        inference_time_ms = item.inference_time_ms
+
+        # Determine cost
+        final_cost = 0.0
+        if result.actual_cost is not None:
+            final_cost = result.actual_cost
+        elif result.input_tokens > 0 or result.output_tokens > 0:
+            tracker = get_tracker()
+            final_cost = tracker.record_usage(
+                provider, model, result.input_tokens, result.output_tokens
+            )
+
+        def do_housekeeping():
+            # Save to database
+            db = get_db()
+            db.save_transcription(
+                provider=provider,
+                model=model,
+                transcript_text=result.text,
+                audio_duration_seconds=audio_duration,
+                inference_time_ms=inference_time_ms,
+                input_tokens=result.input_tokens,
+                output_tokens=result.output_tokens,
+                estimated_cost=final_cost,
+                audio_file_path=None,  # Queue doesn't support archival yet
+                vad_audio_duration_seconds=vad_duration,
+                prompt_text_length=prompt_length,
+            )
+
+            # Check embedding batch
+            if self.config.embedding_enabled and self.config.gemini_api_key:
+                self._check_embedding_batch()
+
+            # Update stats
+            self._update_all_time_word_count()
+            self.recent_panel.refresh()
+
+        QTimer.singleShot(0, do_housekeeping)
+
     def quit_app(self):
         """Quit the application."""
         # Clean up all worker threads first to prevent callbacks after quit
         self._cleanup_all_workers()
+
+        # Clean up transcription queue
+        self.transcription_queue.cleanup()
 
         # Stop hotkey listener
         self.hotkey_listener.stop()
 
         # Clean up audio recorder
         self.recorder.cleanup()
+
+        # Save recent panel state
+        self.config.recent_panel_collapsed = self.recent_panel.collapsed
 
         # Save config
         save_config(self.config)

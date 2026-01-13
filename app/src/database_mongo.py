@@ -200,6 +200,39 @@ class TranscriptionDB:
                 pass
             return None
 
+    def get_recent_transcriptions(self, limit: int = 5) -> List[Dict[str, Any]]:
+        """Get the most recent transcriptions for quick access panel.
+
+        Returns lightweight dicts with just the fields needed for display:
+        - id: Transcript ID as string
+        - transcript_text: Full text
+        - timestamp: ISO timestamp
+        - word_count: Word count
+        - model: Model used
+
+        Args:
+            limit: Maximum number of transcriptions to return (default 5)
+
+        Returns:
+            List of dicts sorted by timestamp descending (most recent first)
+        """
+        with self._lock:
+            db = self._get_db()
+
+            cursor = db.transcriptions.find({}).sort('timestamp', -1).limit(limit)
+
+            results = []
+            for doc in cursor:
+                results.append({
+                    'id': str(doc.get('_id', '')),
+                    'transcript_text': doc.get('transcript_text', ''),
+                    'timestamp': doc.get('timestamp', ''),
+                    'word_count': doc.get('word_count', 0),
+                    'model': doc.get('model', ''),
+                })
+
+            return results
+
     def get_transcriptions(
         self,
         limit: int = 50,

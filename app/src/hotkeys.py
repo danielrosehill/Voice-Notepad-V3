@@ -65,6 +65,8 @@ KEY_MAP = {
     "f18": keyboard.Key.f18,
     "f19": keyboard.Key.f19,
     "f20": keyboard.Key.f20,
+    # F21-F24 may not have direct pynput constants; handled via vk codes
+    # These are handled in _normalize_key() and key_to_string()
     # Common modifiers for combinations
     "ctrl": keyboard.Key.ctrl,
     "alt": keyboard.Key.alt,

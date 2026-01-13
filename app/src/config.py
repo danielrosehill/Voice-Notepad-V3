@@ -252,6 +252,7 @@ class Config:
     hotkey_clear: str = "f18"        # Clear/delete recording and cache
     hotkey_append: str = "f19"       # Append: start recording to add to cache
     hotkey_retake: str = "f20"       # Retake: discard current and start fresh recording
+    hotkey_copy_last: str = ""       # Copy last transcription to clipboard (global, default disabled)
 
     # Legacy hotkey fields - kept for migration, mapped to new fields
     hotkey_mode: str = ""  # Deprecated
@@ -417,6 +418,12 @@ class Config:
 
     # UI state
     prompt_stack_collapsed: bool = True  # Whether the prompt stack is collapsed (default: collapsed)
+    recent_panel_collapsed: bool = True   # Whether the recent panel is collapsed (default: collapsed)
+    recent_panel_max_items: int = 5       # Number of items to show in recent panel
+
+    # Queue mode (rapid dictation)
+    queue_enabled: bool = True            # Enable transcription queue for rapid dictation
+    queue_max_concurrent: int = 2         # Max concurrent transcriptions
 
     # ==========================================================================
     # TRANSLATION MODE
