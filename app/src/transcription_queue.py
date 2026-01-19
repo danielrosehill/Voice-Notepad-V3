@@ -30,7 +30,6 @@ class QueueItemState(Enum):
 @dataclass
 class TranscriptionSettings:
     """Snapshot of settings at the time of queuing."""
-    provider: str
     api_key: str
     model: str
     prompt: str
@@ -98,7 +97,7 @@ class QueueWorker(QThread):
             # Transcribe
             self.status.emit(item.id, "Transcribing...")
             start_time = time.time()
-            client = get_client(settings.provider, settings.api_key, settings.model)
+            client = get_client(settings.api_key, settings.model)
             result = client.transcribe(compressed_audio, settings.prompt)
             self.inference_time_ms = int((time.time() - start_time) * 1000)
 
@@ -130,7 +129,6 @@ class TranscriptionQueue(QObject):
     def enqueue(
         self,
         audio_data: bytes,
-        provider: str,
         api_key: str,
         model: str,
         prompt: str,
@@ -140,8 +138,7 @@ class TranscriptionQueue(QObject):
 
         Args:
             audio_data: Raw audio bytes
-            provider: API provider ("gemini" or "openrouter")
-            api_key: API key for the provider
+            api_key: OpenRouter API key
             model: Model name
             prompt: Cleanup prompt
             vad_enabled: Whether to apply VAD
@@ -150,7 +147,6 @@ class TranscriptionQueue(QObject):
             item_id: Unique ID for tracking this item
         """
         settings = TranscriptionSettings(
-            provider=provider,
             api_key=api_key,
             model=model,
             prompt=prompt,

@@ -7,70 +7,40 @@ from PyQt6.QtWidgets import (
     QScrollArea,
     QFrame,
     QHBoxLayout,
-    QTabWidget,
 )
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QFont, QIcon
-from pathlib import Path
+from PyQt6.QtGui import QFont
 
-from .config import GEMINI_MODELS, OPENROUTER_MODELS
+from .config import OPENROUTER_MODELS
 
 
 # Model metadata with additional notes
 MODEL_INFO = {
-    # Gemini Direct models
-    "gemini-flash-latest": {
-        "note": "⭐ Dynamic endpoint - always points to the latest Flash model (auto-updates)",
+    "google/gemini-3-flash-preview": {
+        "note": "⭐ Latest Gemini 3 Flash preview - fast and capable",
         "audio_support": True,
         "tier": "standard",
         "recommended": True,
     },
-    "gemini-2.5-flash": {
-        "note": "Current stable Flash model with excellent capabilities",
-        "audio_support": True,
-        "tier": "standard",
-    },
-    "gemini-2.5-flash-lite": {
-        "note": "Lighter version optimized for cost efficiency",
-        "audio_support": True,
-        "tier": "budget",
-    },
-    "gemini-2.5-pro": {
-        "note": "Most capable Gemini model for complex tasks",
+    "google/gemini-3-pro-preview": {
+        "note": "Gemini 3 Pro preview - most capable model",
         "audio_support": True,
         "tier": "premium",
     },
-    "gemini-3-flash-preview": {
-        "note": "Preview of next-generation Flash model",
-        "audio_support": True,
-        "tier": "standard",
-    },
-    # OpenRouter models (Gemini via OpenRouter)
     "google/gemini-2.5-flash": {
-        "note": "Gemini 2.5 Flash via OpenRouter",
+        "note": "Stable Gemini 2.5 Flash with excellent capabilities",
         "audio_support": True,
         "tier": "standard",
-        "recommended": True,
     },
     "google/gemini-2.5-flash-lite": {
-        "note": "Budget-friendly Gemini 2.5 Flash Lite",
+        "note": "Budget-friendly option for cost efficiency",
         "audio_support": True,
         "tier": "budget",
     },
-    "google/gemini-2.0-flash-001": {
-        "note": "Gemini 2.0 Flash via OpenRouter",
+    "google/gemini-2.5-pro": {
+        "note": "Premium Gemini 2.5 Pro for complex tasks",
         "audio_support": True,
-        "tier": "standard",
-    },
-    "google/gemini-2.0-flash-lite-001": {
-        "note": "Budget-friendly Gemini 2.0 Flash Lite",
-        "audio_support": True,
-        "tier": "budget",
-    },
-    "google/gemini-3-flash-preview": {
-        "note": "Preview of Gemini 3 Flash via OpenRouter",
-        "audio_support": True,
-        "tier": "standard",
+        "tier": "premium",
     },
 }
 
@@ -106,8 +76,8 @@ class ModelsWidget(QWidget):
         container_layout.addWidget(title)
 
         intro = QLabel(
-            "Voice Notepad uses Gemini models exclusively for audio transcription. "
-            "The recommended setup is <b>Gemini Direct</b> with the <b>gemini-flash-latest</b> endpoint."
+            "Voice Notepad uses Gemini models via <b>OpenRouter</b> for audio transcription. "
+            "The default model is <b>Gemini 3 Flash</b> which offers excellent speed and quality."
         )
         intro.setWordWrap(True)
         intro.setStyleSheet("color: #666; font-size: 11px;")
@@ -115,13 +85,11 @@ class ModelsWidget(QWidget):
 
         # Rationale box
         rationale = QLabel(
-            "<b>Why Gemini Flash Latest?</b><br>"
-            "After extensive testing (~1000 transcriptions), the Flash models have proven highly "
+            "<b>Why Gemini via OpenRouter?</b><br>"
+            "After extensive testing (~2000 transcriptions), the Gemini Flash models have proven highly "
             "cost-effective for voice transcription workloads—typically just a few dollars for "
-            "heavy usage. The dynamic 'gemini-flash-latest' endpoint automatically points to "
-            "Google's latest Flash model, eliminating the need for manual updates when new "
-            "versions are released. This endpoint is only available through the direct Gemini API, "
-            "not through OpenRouter."
+            "heavy usage. OpenRouter provides a unified API with competitive latency and "
+            "access to the latest Gemini models including the Gemini 3 preview."
         )
         rationale.setWordWrap(True)
         rationale.setStyleSheet(
@@ -158,69 +126,14 @@ class ModelsWidget(QWidget):
         legend_layout.addStretch()
         container_layout.addWidget(legend_widget)
 
-        # Tabbed interface for providers
-        tabs = QTabWidget()
-        tabs.setStyleSheet("""
-            QTabWidget::pane {
-                border: 1px solid #ddd;
-                border-radius: 4px;
-                background: white;
-            }
-            QTabBar::tab {
-                background: #f5f5f5;
-                border: 1px solid #ddd;
-                border-bottom: none;
-                padding: 8px 16px;
-                margin-right: 2px;
-                border-top-left-radius: 4px;
-                border-top-right-radius: 4px;
-            }
-            QTabBar::tab:selected {
-                background: white;
-                border-bottom: 1px solid white;
-                margin-bottom: -1px;
-            }
-            QTabBar::tab:hover:!selected {
-                background: #e8e8e8;
-            }
-        """)
-
-        # Icons directory
-        icons_dir = Path(__file__).parent / "icons"
-
-        # Add provider tabs with icons
-        # Gemini Direct (recommended - first tab)
-        gemini_tab_idx = tabs.addTab(
-            self._create_provider_tab(
-                GEMINI_MODELS,
-                "https://ai.google.dev/gemini-api/docs/models",
-                "⭐ <b>Recommended:</b> Direct access to Google's Gemini models. "
-                "The 'gemini-flash-latest' endpoint automatically updates to the latest Flash model, "
-                "eliminating manual version management. Best for users who want the latest model "
-                "without configuration changes."
-            ),
-            "Gemini Direct ⭐"
+        # Models list (OpenRouter only)
+        models_widget = self._create_models_list(
+            OPENROUTER_MODELS,
+            "https://openrouter.ai/models?fmt=cards&input_modalities=audio",
+            "Access to Gemini models via OpenRouter's OpenAI-compatible API. "
+            "All models support audio input for transcription."
         )
-        gemini_icon_path = icons_dir / "gemini_icon.png"
-        if gemini_icon_path.exists():
-            tabs.setTabIcon(gemini_tab_idx, QIcon(str(gemini_icon_path)))
-
-        # OpenRouter (alternative)
-        or_tab_idx = tabs.addTab(
-            self._create_provider_tab(
-                OPENROUTER_MODELS,
-                "https://openrouter.ai/models?fmt=cards&input_modalities=audio",
-                "Alternative access to Gemini models via OpenRouter's OpenAI-compatible API. "
-                "Useful if you already have an OpenRouter account. Note: The dynamic "
-                "'gemini-flash-latest' endpoint is not available through OpenRouter."
-            ),
-            "OpenRouter"
-        )
-        or_icon_path = icons_dir / "or_icon.png"
-        if or_icon_path.exists():
-            tabs.setTabIcon(or_tab_idx, QIcon(str(or_icon_path)))
-
-        container_layout.addWidget(tabs)
+        container_layout.addWidget(models_widget)
 
         # Info note about local storage
         note = QLabel(
@@ -237,21 +150,21 @@ class ModelsWidget(QWidget):
 
         main_layout.addWidget(container)
 
-    def _create_provider_tab(
+    def _create_models_list(
         self,
         models: list,
         docs_url: str,
         description: str
     ) -> QWidget:
-        """Create a tab for a provider's models."""
-        tab = QWidget()
-        tab.setStyleSheet("background: white;")
+        """Create a list of models."""
+        container = QWidget()
+        container.setStyleSheet("background: white;")
 
         # Scroll area for models
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QFrame.Shape.NoFrame)
-        scroll.setStyleSheet("background: white; border: none;")
+        scroll.setStyleSheet("background: white; border: 1px solid #ddd; border-radius: 4px;")
 
         content = QWidget()
         content.setStyleSheet("background: white;")
@@ -259,7 +172,7 @@ class ModelsWidget(QWidget):
         layout.setContentsMargins(12, 12, 12, 12)
         layout.setSpacing(8)
 
-        # Provider description
+        # Description
         desc_label = QLabel(description)
         desc_label.setWordWrap(True)
         desc_label.setStyleSheet("color: #666; font-size: 11px; padding-bottom: 4px;")
@@ -287,11 +200,11 @@ class ModelsWidget(QWidget):
 
         scroll.setWidget(content)
 
-        tab_layout = QVBoxLayout(tab)
-        tab_layout.setContentsMargins(0, 0, 0, 0)
-        tab_layout.addWidget(scroll)
+        container_layout = QVBoxLayout(container)
+        container_layout.setContentsMargins(0, 0, 0, 0)
+        container_layout.addWidget(scroll)
 
-        return tab
+        return container
 
     def _create_model_entry(self, model_id: str, display_name: str) -> QWidget:
         """Create a widget for a single model entry."""

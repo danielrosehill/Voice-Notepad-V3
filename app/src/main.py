@@ -55,7 +55,6 @@ from .config import (
     save_config,
     load_env_keys,
     CONFIG_DIR,
-    GEMINI_MODELS,
     OPENROUTER_MODELS,
     MODEL_TIERS,
     build_cleanup_prompt,
@@ -66,8 +65,8 @@ from .config import (
     VERBOSITY_DISPLAY_NAMES,
     EMAIL_SIGNOFFS,
     is_favorite_configured,
-    get_active_provider_and_model,
-    get_fallback_provider_and_model,
+    get_active_model,
+    get_fallback_model,
     is_preset_configured,
     get_language_display_name,
     get_language_flag,
@@ -172,7 +171,6 @@ class TranscriptionWorker(QThread):
     def __init__(
         self,
         audio_data: bytes,
-        provider: str,
         api_key: str,
         model: str,
         prompt: str,
@@ -180,7 +178,6 @@ class TranscriptionWorker(QThread):
     ):
         super().__init__()
         self.audio_data = audio_data
-        self.provider = provider
         self.api_key = api_key
         self.model = model
         self.prompt = prompt
@@ -215,7 +212,7 @@ class TranscriptionWorker(QThread):
 
             self.status.emit("Transcribing...")
             start_time = time.time()
-            client = get_client(self.provider, self.api_key, self.model)
+            client = get_client(self.api_key, self.model)
             result = client.transcribe(compressed_audio, self.prompt)
             self.inference_time_ms = int((time.time() - start_time) * 1000)
             self.finished.emit(result)
@@ -234,14 +231,12 @@ class RewriteWorker(QThread):
         self,
         text: str,
         instruction: str,
-        provider: str,
         api_key: str,
         model: str,
     ):
         super().__init__()
         self.text = text
         self.instruction = instruction
-        self.provider = provider
         self.api_key = api_key
         self.model = model
         self.inference_time_ms: int = 0
@@ -250,7 +245,7 @@ class RewriteWorker(QThread):
         try:
             self.status.emit("Rewriting...")
             start_time = time.time()
-            client = get_client(self.provider, self.api_key, self.model)
+            client = get_client(self.api_key, self.model)
             result = client.rewrite_text(self.text, self.instruction)
             self.inference_time_ms = int((time.time() - start_time) * 1000)
             self.finished.emit(result)
@@ -264,16 +259,15 @@ class TitleGeneratorWorker(QThread):
     finished = pyqtSignal(str)
     error = pyqtSignal(str)
 
-    def __init__(self, text: str, provider: str, api_key: str, model: str):
+    def __init__(self, text: str, api_key: str, model: str):
         super().__init__()
         self.text = text
-        self.provider = provider
         self.api_key = api_key
         self.model = model
 
     def run(self):
         try:
-            client = get_client(self.provider, self.api_key, self.model)
+            client = get_client(self.api_key, self.model)
             title = client.generate_title(self.text)
             self.finished.emit(title)
         except Exception as e:
@@ -2220,18 +2214,15 @@ class MainWindow(QMainWindow):
         # Update tray to transcribing state
         self._set_tray_state("transcribing")
 
-        # Get provider and model from active preset
-        provider, model = self._get_current_model()
-        if provider == "gemini":
-            api_key = self.config.gemini_api_key
-        else:  # openrouter
-            api_key = self.config.openrouter_api_key
+        # Get model from active preset (always using OpenRouter)
+        _, model = self._get_current_model()
+        api_key = self.config.openrouter_api_key
 
         if not api_key:
             QMessageBox.warning(
                 self,
                 "Missing API Key",
-                f"Please set your {provider.title()} API key in Settings.",
+                "Please set your OpenRouter API key in Settings.",
             )
             self.reset_ui()
             return
@@ -2245,7 +2236,6 @@ class MainWindow(QMainWindow):
         if self.config.queue_enabled:
             self.transcription_queue.enqueue(
                 audio_data,
-                provider=provider,
                 api_key=api_key,
                 model=model,
                 prompt=cleanup_prompt,
@@ -2256,7 +2246,6 @@ class MainWindow(QMainWindow):
             self._cleanup_worker("worker")
             self.worker = TranscriptionWorker(
                 audio_data,
-                provider,
                 api_key,
                 model,
                 cleanup_prompt,
@@ -2298,18 +2287,15 @@ class MainWindow(QMainWindow):
         # Update tray to transcribing state
         self._set_tray_state("transcribing")
 
-        # Get provider and model from active preset
-        provider, model = self._get_current_model()
-        if provider == "gemini":
-            api_key = self.config.gemini_api_key
-        else:  # openrouter
-            api_key = self.config.openrouter_api_key
+        # Get model from active preset (always using OpenRouter)
+        _, model = self._get_current_model()
+        api_key = self.config.openrouter_api_key
 
         if not api_key:
             QMessageBox.warning(
                 self,
                 "Missing API Key",
-                f"Please set your {provider.title()} API key in Settings.",
+                "Please set your OpenRouter API key in Settings.",
             )
             # Restore failed audio state so user can try again after setting key
             self.has_failed_audio = True
@@ -2324,7 +2310,6 @@ class MainWindow(QMainWindow):
         if self.config.queue_enabled:
             self.transcription_queue.enqueue(
                 self.last_audio_data,
-                provider=provider,
                 api_key=api_key,
                 model=model,
                 prompt=cleanup_prompt,
@@ -2335,7 +2320,6 @@ class MainWindow(QMainWindow):
             self._cleanup_worker("worker")
             self.worker = TranscriptionWorker(
                 self.last_audio_data,
-                provider,
                 api_key,
                 model,
                 cleanup_prompt,
@@ -2444,18 +2428,15 @@ class MainWindow(QMainWindow):
         # Update tray to transcribing state
         self._set_tray_state("transcribing")
 
-        # Get provider and model from active preset
-        provider, model = self._get_current_model()
-        if provider == "gemini":
-            api_key = self.config.gemini_api_key
-        else:  # openrouter
-            api_key = self.config.openrouter_api_key
+        # Get model from active preset (always using OpenRouter)
+        _, model = self._get_current_model()
+        api_key = self.config.openrouter_api_key
 
         if not api_key:
             QMessageBox.warning(
                 self,
                 "Missing API Key",
-                f"Please set your {provider.title()} API key in Settings.",
+                "Please set your OpenRouter API key in Settings.",
             )
             self.reset_ui()
             return
@@ -2469,7 +2450,6 @@ class MainWindow(QMainWindow):
         if self.config.queue_enabled:
             self.transcription_queue.enqueue(
                 audio_data,
-                provider=provider,
                 api_key=api_key,
                 model=model,
                 prompt=cleanup_prompt,
@@ -2480,7 +2460,6 @@ class MainWindow(QMainWindow):
             self._cleanup_worker("worker")
             self.worker = TranscriptionWorker(
                 audio_data,
-                provider,
                 api_key,
                 model,
                 cleanup_prompt,
@@ -2634,12 +2613,7 @@ class MainWindow(QMainWindow):
         on the clipboard/in the app with minimal latency.
         """
         # Capture all state needed for deferred tasks
-        provider = self.config.selected_provider
-        model = (
-            self.config.gemini_model
-            if provider == "gemini"
-            else self.config.openrouter_model
-        )
+        model = get_active_model(self.config)
         audio_duration = getattr(self, "last_audio_duration", None)
         vad_duration = getattr(self, "last_vad_duration", None)
         prompt_length = len(self.worker.prompt) if self.worker else 0
@@ -2654,7 +2628,7 @@ class MainWindow(QMainWindow):
         elif result.input_tokens > 0 or result.output_tokens > 0:
             tracker = get_tracker()
             final_cost = tracker.record_usage(
-                provider, model, result.input_tokens, result.output_tokens
+                "openrouter", model, result.input_tokens, result.output_tokens
             )
 
         def do_housekeeping():
@@ -2671,7 +2645,7 @@ class MainWindow(QMainWindow):
             # Save to database
             db = get_db()
             db.save_transcription(
-                provider=provider,
+                provider="openrouter",
                 model=model,
                 transcript_text=result.text,
                 audio_duration_seconds=audio_duration,
@@ -2685,7 +2659,7 @@ class MainWindow(QMainWindow):
             )
 
             # Check if embedding batch processing is needed
-            if self.config.embedding_enabled and self.config.gemini_api_key:
+            if self.config.embedding_enabled and self.config.openrouter_api_key:
                 self._check_embedding_batch()
 
             # Update all-time word count in footer
@@ -2719,18 +2693,13 @@ class MainWindow(QMainWindow):
 
         if should_failover:
             # Attempt failover to the fallback model
-            fallback = get_fallback_provider_and_model(self.config)
-            if fallback:
-                fallback_provider, fallback_model = fallback
-                fallback_api_key = (
-                    self.config.gemini_api_key
-                    if fallback_provider == "gemini"
-                    else self.config.openrouter_api_key
-                )
+            fallback_model = get_fallback_model(self.config)
+            if fallback_model:
+                fallback_api_key = self.config.openrouter_api_key
 
                 if fallback_api_key:
                     print(
-                        f"Primary transcription failed. Attempting failover to {fallback_provider}/{fallback_model}..."
+                        f"Primary transcription failed. Attempting failover to {fallback_model}..."
                     )
                     self.status_label.setText(
                         f"Failover: trying {self.config.fallback_name or 'fallback'}..."
@@ -2753,7 +2722,6 @@ class MainWindow(QMainWindow):
                     )
                     self.worker = TranscriptionWorker(
                         self.last_audio_data,
-                        fallback_provider,
                         fallback_api_key,
                         fallback_model,
                         cleanup_prompt,
@@ -2942,7 +2910,7 @@ class MainWindow(QMainWindow):
 
     def _update_model_display(self):
         """Update the model display button text and menu."""
-        provider, model = self._get_current_model()
+        _, model = self._get_current_model()
         preset = self.config.active_model_preset
 
         # Button shows just "Primary" or "Fallback"
@@ -2954,13 +2922,12 @@ class MainWindow(QMainWindow):
         elif preset == "fallback" and self.config.fallback_name:
             custom_name = self.config.fallback_name
         else:
-            custom_name = get_model_display_name(model, provider)
+            custom_name = get_model_display_name(model)
 
         # Set button text (no indicator - click shows menu)
         self.model_selector_btn.setText(display_text)
         self.model_selector_btn.setToolTip(
             f"{custom_name}\n"
-            f"Provider: {provider.title()}\n"
             f"Model: {model}\n"
             f"Failover: {'Enabled' if self.config.failover_enabled else 'Disabled'}\n"
             f"Click to change"
@@ -3041,8 +3008,8 @@ class MainWindow(QMainWindow):
 
         # Play TTS announcement if enabled
         announcer = get_announcer()
-        provider, model = self._get_current_model()
-        model_name = get_model_display_name(model, provider)
+        _, model = self._get_current_model()
+        model_name = get_model_display_name(model)
         announcer.announce_model_changed(model_name)
 
     def _refresh_model_preset_menu(self):
@@ -3074,9 +3041,9 @@ class MainWindow(QMainWindow):
         """Get the currently selected provider and model based on active preset.
 
         Returns:
-            Tuple of (provider, model).
+            Tuple of (provider, model). Provider is always "openrouter".
         """
-        return get_active_provider_and_model(self.config)
+        return ("openrouter", get_active_model(self.config))
 
     def reset_ui(self):
         """Reset UI to initial state.
@@ -3304,18 +3271,15 @@ class MainWindow(QMainWindow):
             )
             return
 
-        # Get provider and model from active preset
-        provider, model = self._get_current_model()
-        if provider == "gemini":
-            api_key = self.config.gemini_api_key
-        else:  # openrouter
-            api_key = self.config.openrouter_api_key
+        # Get model from active preset (always using OpenRouter)
+        _, model = self._get_current_model()
+        api_key = self.config.openrouter_api_key
 
         if not api_key:
             QMessageBox.warning(
                 self,
                 "Missing API Key",
-                f"Please set your {provider.title()} API key in Settings.",
+                "Please set your OpenRouter API key in Settings.",
             )
             return
 
@@ -3331,7 +3295,6 @@ class MainWindow(QMainWindow):
         self.rewrite_worker = RewriteWorker(
             text,
             instruction,
-            provider,
             api_key,
             model,
         )
@@ -3346,11 +3309,7 @@ class MainWindow(QMainWindow):
         self.text_output.setMarkdown(result.text)
 
         # Update cost tracking
-        provider = self.config.selected_provider
-        if provider == "gemini":
-            model = self.config.gemini_model
-        else:  # openrouter
-            model = self.config.openrouter_model
+        model = get_active_model(self.config)
 
         # Determine cost
         final_cost = 0.0
@@ -3359,7 +3318,7 @@ class MainWindow(QMainWindow):
         elif result.input_tokens > 0 or result.output_tokens > 0:
             tracker = get_tracker()
             final_cost = tracker.record_usage(
-                provider, model, result.input_tokens, result.output_tokens
+                "openrouter", model, result.input_tokens, result.output_tokens
             )
 
         # Get inference time from worker
@@ -3368,7 +3327,7 @@ class MainWindow(QMainWindow):
         # Save to database
         db = get_db()
         db.save_transcription(
-            provider=provider,
+            provider="openrouter",
             model=model,
             transcript_text=result.text,
             audio_duration_seconds=None,  # No audio for rewrite
@@ -3382,7 +3341,7 @@ class MainWindow(QMainWindow):
         )
 
         # Check if embedding batch processing is needed
-        if self.config.embedding_enabled and self.config.gemini_api_key:
+        if self.config.embedding_enabled and self.config.openrouter_api_key:
             self._check_embedding_batch()
 
         # Update all-time word count in footer
@@ -3404,10 +3363,10 @@ class MainWindow(QMainWindow):
         if not text:
             return
 
-        # Get API key for Gemini (always use Gemini for title generation)
-        api_key = self.config.gemini_api_key
+        # Get API key for title generation
+        api_key = self.config.openrouter_api_key
         if not api_key:
-            # Fallback: use manual filename if no Gemini key
+            # Fallback: use manual filename if no API key
             from datetime import datetime
 
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -3425,9 +3384,8 @@ class MainWindow(QMainWindow):
         # Start title generation worker
         self.title_worker = TitleGeneratorWorker(
             text,
-            "gemini",
             api_key,
-            "gemini-2.0-flash-lite",  # Use fast, cheap model for titles
+            "google/gemini-2.5-flash-lite",  # Use fast, cheap model for titles
         )
         self.title_worker.finished.connect(self.on_title_generated)
         self.title_worker.error.connect(self.on_title_error)
@@ -3535,7 +3493,7 @@ class MainWindow(QMainWindow):
                 return
 
             # Get or create batch processor
-            processor = get_batch_processor(self.config.gemini_api_key)
+            processor = get_batch_processor(self.config.openrouter_api_key)
             if processor is None:
                 return
 
@@ -4044,7 +4002,6 @@ class MainWindow(QMainWindow):
         if not item:
             return
 
-        provider = item.settings.provider
         model = item.settings.model
         audio_duration = item.original_duration
         vad_duration = item.vad_duration
@@ -4058,14 +4015,14 @@ class MainWindow(QMainWindow):
         elif result.input_tokens > 0 or result.output_tokens > 0:
             tracker = get_tracker()
             final_cost = tracker.record_usage(
-                provider, model, result.input_tokens, result.output_tokens
+                "openrouter", model, result.input_tokens, result.output_tokens
             )
 
         def do_housekeeping():
             # Save to database
             db = get_db()
             db.save_transcription(
-                provider=provider,
+                provider="openrouter",
                 model=model,
                 transcript_text=result.text,
                 audio_duration_seconds=audio_duration,
@@ -4079,7 +4036,7 @@ class MainWindow(QMainWindow):
             )
 
             # Check embedding batch
-            if self.config.embedding_enabled and self.config.gemini_api_key:
+            if self.config.embedding_enabled and self.config.openrouter_api_key:
                 self._check_embedding_batch()
 
             # Update stats

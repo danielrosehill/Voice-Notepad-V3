@@ -20,7 +20,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, QThread, pyqtSignal, QSize
 from PyQt6.QtGui import QFont, QDragEnterEvent, QDropEvent, QIcon
 
-from .config import GEMINI_MODELS, OPENROUTER_MODELS, Config
+from .config import OPENROUTER_MODELS, Config
 
 from pydub import AudioSegment
 
@@ -30,7 +30,7 @@ from .transcription import get_client, TranscriptionResult
 from .markdown_widget import MarkdownTextWidget
 from .audio_feedback import get_feedback
 from .database_mongo import get_db, AUDIO_ARCHIVE_DIR
-from .ui_utils import get_provider_icon, get_model_icon
+from .ui_utils import get_model_icon
 from .clipboard import copy_to_clipboard as clipboard_copy
 
 
@@ -60,7 +60,6 @@ class FileTranscriptionWorker(QThread):
     def __init__(
         self,
         file_path: str,
-        provider: str,
         api_key: str,
         model: str,
         prompt: str,
@@ -68,7 +67,6 @@ class FileTranscriptionWorker(QThread):
     ):
         super().__init__()
         self.file_path = file_path
-        self.provider = provider
         self.api_key = api_key
         self.model = model
         self.prompt = prompt
@@ -118,7 +116,7 @@ class FileTranscriptionWorker(QThread):
             # Step 4: Transcribe
             self.status.emit("Transcribing...")
             start_time = time.time()
-            client = get_client(self.provider, self.api_key, self.model)
+            client = get_client(self.api_key, self.model)
             result = client.transcribe(compressed_audio, self.prompt)
             self.inference_time_ms = int((time.time() - start_time) * 1000)
 
@@ -163,34 +161,16 @@ class FileTranscriptionWidget(QWidget):
         desc.setStyleSheet("color: #666; font-size: 12px;")
         layout.addWidget(desc)
 
-        # Provider and model selection
-        provider_layout = QHBoxLayout()
+        # Model selection (OpenRouter only)
+        model_layout = QHBoxLayout()
 
-        provider_layout.addWidget(QLabel("Provider:"))
-        self.provider_combo = QComboBox()
-        self.provider_combo.setIconSize(QSize(16, 16))
-        # Add providers with icons (Gemini first as recommended)
-        providers = [
-            ("Google Gemini (Recommended)", "google"),
-            ("OpenRouter", "openrouter"),
-        ]
-        for display_name, provider_key in providers:
-            icon = get_provider_icon(provider_key)
-            self.provider_combo.addItem(icon, display_name)
-        # Default to Google Gemini
-        self.provider_combo.setCurrentText("Google Gemini (Recommended)")
-        self.provider_combo.currentTextChanged.connect(self._on_provider_changed)
-        provider_layout.addWidget(self.provider_combo)
-
-        provider_layout.addSpacing(20)
-
-        provider_layout.addWidget(QLabel("Model:"))
+        model_layout.addWidget(QLabel("Model:"))
         self.model_combo = QComboBox()
         self.model_combo.setIconSize(QSize(16, 16))
         self._update_model_combo()
-        provider_layout.addWidget(self.model_combo, 1)
+        model_layout.addWidget(self.model_combo, 1)
 
-        layout.addLayout(provider_layout)
+        layout.addLayout(model_layout)
 
         # File selection frame
         file_frame = QFrame()
@@ -336,44 +316,17 @@ class FileTranscriptionWidget(QWidget):
 
         layout.addLayout(bottom)
 
-    def _on_provider_changed(self, provider: str):
-        """Handle provider selection change."""
-        self._update_model_combo()
-
     def _update_model_combo(self):
-        """Update model dropdown based on selected provider."""
+        """Update model dropdown with available models."""
         self.model_combo.blockSignals(True)
         self.model_combo.clear()
 
-        # Map display name to internal name
-        provider_display = self.provider_combo.currentText()
-        provider_map = {
-            "Google Gemini (Recommended)": "gemini",
-            "OpenRouter": "openrouter",
-        }
-        provider = provider_map.get(provider_display, "gemini")
-
-        # Get model list for provider
-        if provider == "gemini":
-            models = GEMINI_MODELS
-        else:  # openrouter
-            models = OPENROUTER_MODELS
-
         # Add models with model originator icon
-        for model_id, display_name in models:
+        for model_id, display_name in OPENROUTER_MODELS:
             model_icon = get_model_icon(model_id)
             self.model_combo.addItem(model_icon, display_name, model_id)
 
         self.model_combo.blockSignals(False)
-
-    def _get_selected_provider(self) -> str:
-        """Get the internal provider name."""
-        provider_display = self.provider_combo.currentText()
-        display_to_internal = {
-            "Google Gemini (Recommended)": "gemini",
-            "OpenRouter": "openrouter",
-        }
-        return display_to_internal.get(provider_display, "gemini")
 
     def _get_selected_model(self) -> str:
         """Get the selected model ID."""
@@ -458,23 +411,11 @@ class FileTranscriptionWidget(QWidget):
             return
 
         config = main_window.config
-
-        # Use File tab's own provider/model selection
-        provider = self._get_selected_provider()
         model = self._get_selected_model()
-
-        # Get API key for selected provider
-        if provider == "gemini":
-            api_key = config.gemini_api_key
-        else:  # openrouter
-            api_key = config.openrouter_api_key
+        api_key = config.openrouter_api_key
 
         if not api_key:
-            provider_name = {
-                "gemini": "Google Gemini",
-                "openrouter": "OpenRouter",
-            }.get(provider, provider.title())
-            self.status_label.setText(f"Missing API key for {provider_name}. Set in Settings → API Keys")
+            self.status_label.setText("Missing OpenRouter API key. Set in Settings → API Keys")
             self.status_label.setStyleSheet("color: #dc3545;")
             return
 
@@ -492,7 +433,6 @@ class FileTranscriptionWidget(QWidget):
         # Start worker
         self.worker = FileTranscriptionWorker(
             self.selected_file,
-            provider,
             api_key,
             model,
             cleanup_prompt,
@@ -519,8 +459,6 @@ class FileTranscriptionWidget(QWidget):
         """Handle completed transcription."""
         self.text_output.setMarkdown(result.text)
 
-        # Get provider/model info from File tab's own selection
-        provider = self._get_selected_provider()
         model = self._get_selected_model()
 
         # Get config for other settings
@@ -534,7 +472,7 @@ class FileTranscriptionWidget(QWidget):
         elif result.input_tokens > 0 or result.output_tokens > 0:
             from .cost_tracker import get_tracker
             tracker = get_tracker()
-            final_cost = tracker.record_usage(provider, model, result.input_tokens, result.output_tokens)
+            final_cost = tracker.record_usage("openrouter", model, result.input_tokens, result.output_tokens)
 
         # Get durations
         audio_duration = self.worker.original_duration if self.worker else None
@@ -562,7 +500,7 @@ class FileTranscriptionWidget(QWidget):
         # Save to database
         db = get_db()
         db.save_transcription(
-            provider=provider,
+            provider="openrouter",
             model=model,
             transcript_text=result.text,
             audio_duration_seconds=audio_duration,

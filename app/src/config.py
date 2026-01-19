@@ -52,37 +52,20 @@ CONFIG_DIR = Path.home() / ".config" / "voice-notepad-v3"
 CONFIG_FILE = CONFIG_DIR / "config.json"
 
 
-# Available models per provider (model_id, display_name)
-# Gemini Direct (recommended) - uses Google's dynamic "latest" endpoint
-GEMINI_MODELS = [
-    ("gemini-flash-latest", "Gemini Flash (Latest)"),
-    ("gemini-2.5-flash", "Gemini 2.5 Flash"),
-    ("gemini-2.5-flash-lite", "Gemini 2.5 Flash Lite (Budget)"),
-    ("gemini-2.5-pro", "Gemini 2.5 Pro"),
-    ("gemini-3-flash-preview", "Gemini 3 Flash (Preview)"),
-]
-
-# OpenRouter models - Gemini models only (OpenAI-compatible API)
-# Note: OpenRouter doesn't support the dynamic "gemini-flash-latest" endpoint
+# Available models via OpenRouter (model_id, display_name)
+# All models are accessed through OpenRouter's unified API
 OPENROUTER_MODELS = [
+    ("google/gemini-3-flash-preview", "Gemini 3 Flash (Default)"),
+    ("google/gemini-3-pro-preview", "Gemini 3 Pro"),
     ("google/gemini-2.5-flash", "Gemini 2.5 Flash"),
     ("google/gemini-2.5-flash-lite", "Gemini 2.5 Flash Lite (Budget)"),
-    ("google/gemini-2.0-flash-001", "Gemini 2.0 Flash"),
-    ("google/gemini-2.0-flash-lite-001", "Gemini 2.0 Flash Lite (Budget)"),
-    ("google/gemini-3-flash-preview", "Gemini 3 Flash (Preview)"),
+    ("google/gemini-2.5-pro", "Gemini 2.5 Pro"),
 ]
 
-# Standard and Budget model tiers per provider
-# These define which models the quick-toggle buttons select
+# Standard and Budget model tiers for quick-toggle buttons
 MODEL_TIERS = {
-    "gemini": {
-        "standard": "gemini-flash-latest",
-        "budget": "gemini-2.5-flash-lite",
-    },
-    "openrouter": {
-        "standard": "google/gemini-3-flash-preview",
-        "budget": "google/gemini-2.5-flash-lite",
-    },
+    "standard": "google/gemini-3-flash-preview",
+    "budget": "google/gemini-2.5-flash-lite",
 }
 
 # Short audio optimization: use minimal prompt for brief recordings
@@ -154,22 +137,17 @@ SHORT_AUDIO_PROMPT = """Transcribe the audio. Apply only essential cleanup:
 Output only the cleaned text, no commentary."""
 
 
-def get_model_display_name(model_id: str, provider: str = "gemini") -> str:
+def get_model_display_name(model_id: str) -> str:
     """Get the human-readable display name for a model ID.
 
     Args:
-        model_id: The model identifier (e.g., "gemini-flash-latest", "google/gemini-2.5-flash")
-        provider: The provider name ("gemini" or "openrouter")
+        model_id: The model identifier (e.g., "google/gemini-2.5-flash")
 
     Returns:
-        Human-readable display name (e.g., "Gemini Flash (Latest) ⭐")
+        Human-readable display name (e.g., "Gemini 2.5 Flash")
     """
-    # Build lookup dictionary from model lists
-    model_lookup = {}
-    for model_id_key, display_name in GEMINI_MODELS:
-        model_lookup[model_id_key] = display_name
-    for model_id_key, display_name in OPENROUTER_MODELS:
-        model_lookup[model_id_key] = display_name
+    # Build lookup dictionary from model list
+    model_lookup = {model_id_key: display_name for model_id_key, display_name in OPENROUTER_MODELS}
 
     # Return display name if found, otherwise return the model_id as-is
     return model_lookup.get(model_id, model_id)
@@ -179,29 +157,20 @@ def get_model_display_name(model_id: str, provider: str = "gemini") -> str:
 class Config:
     """Application configuration."""
 
-    # API Keys
-    gemini_api_key: str = ""
+    # API Key (OpenRouter only - all models accessed via OpenRouter)
     openrouter_api_key: str = ""
 
-    # Selected model provider: "gemini" or "openrouter"
-    # OpenRouter with Gemini 3 Flash Preview is recommended for best latency.
-    selected_provider: str = "openrouter"
-
-    # Model names per provider
-    gemini_model: str = "gemini-flash-latest"
-    openrouter_model: str = "google/gemini-3-flash-preview"
+    # Selected model (all models via OpenRouter)
+    selected_model: str = "google/gemini-3-flash-preview"
 
     # Primary and Fallback models - quick presets for switching with automatic failover
-    # Primary: Your main transcription model (default: Gemini 3 Flash Preview via OpenRouter)
-    # Fallback: Used automatically if primary fails (default: Gemini Flash Latest direct)
-    # Using different providers for primary/fallback is recommended for resilience
-    primary_name: str = "Gemini 3 Flash (OpenRouter)"
-    primary_provider: str = "openrouter"
+    # Primary: Your main transcription model (default: Gemini 3 Flash)
+    # Fallback: Used automatically if primary fails (default: Gemini 2.5 Flash)
+    primary_name: str = "Gemini 3 Flash"
     primary_model: str = "google/gemini-3-flash-preview"
 
-    fallback_name: str = "Gemini Flash (Latest)"
-    fallback_provider: str = "gemini"
-    fallback_model: str = "gemini-flash-latest"
+    fallback_name: str = "Gemini 2.5 Flash"
+    fallback_model: str = "google/gemini-2.5-flash"
 
     # Enable automatic failover to fallback model if primary fails
     failover_enabled: bool = True
@@ -209,7 +178,13 @@ class Config:
     # Which model preset is currently active: "primary" or "fallback"
     active_model_preset: str = "primary"
 
-    # Legacy fields for migration
+    # Legacy fields for migration (kept for backwards compatibility)
+    gemini_api_key: str = ""  # Deprecated - migrated to openrouter_api_key
+    selected_provider: str = ""  # Deprecated - always OpenRouter now
+    gemini_model: str = ""  # Deprecated
+    openrouter_model: str = ""  # Deprecated - use selected_model
+    primary_provider: str = ""  # Deprecated - always OpenRouter
+    fallback_provider: str = ""  # Deprecated - always OpenRouter
     favorite_1_name: str = ""
     favorite_1_provider: str = ""
     favorite_1_model: str = ""
@@ -546,6 +521,51 @@ def _apply_migrations(config: Config) -> Config:
         # "default" now maps to "primary"
         config.active_model_preset = "primary"
 
+    # Migration: provider-based config -> OpenRouter-only config
+    # Migrate openrouter_model to selected_model if set
+    if config.openrouter_model and not config.selected_model:
+        config.selected_model = config.openrouter_model
+    # If user was using gemini provider with a model, try to map to OpenRouter equivalent
+    if config.selected_provider == "gemini" and config.gemini_model:
+        gemini_to_openrouter = {
+            "gemini-flash-latest": "google/gemini-3-flash-preview",
+            "gemini-2.5-flash": "google/gemini-2.5-flash",
+            "gemini-2.5-flash-lite": "google/gemini-2.5-flash-lite",
+            "gemini-2.5-pro": "google/gemini-2.5-pro",
+            "gemini-3-flash-preview": "google/gemini-3-flash-preview",
+        }
+        if not config.selected_model:
+            config.selected_model = gemini_to_openrouter.get(
+                config.gemini_model, "google/gemini-3-flash-preview"
+            )
+    # Ensure selected_model has a default
+    if not config.selected_model:
+        config.selected_model = "google/gemini-3-flash-preview"
+
+    # Migrate primary_provider-based config
+    if config.primary_provider == "gemini" and config.primary_model:
+        gemini_to_openrouter = {
+            "gemini-flash-latest": "google/gemini-3-flash-preview",
+            "gemini-2.5-flash": "google/gemini-2.5-flash",
+            "gemini-2.5-flash-lite": "google/gemini-2.5-flash-lite",
+            "gemini-2.5-pro": "google/gemini-2.5-pro",
+            "gemini-3-flash-preview": "google/gemini-3-flash-preview",
+        }
+        config.primary_model = gemini_to_openrouter.get(
+            config.primary_model, config.primary_model
+        )
+    if config.fallback_provider == "gemini" and config.fallback_model:
+        gemini_to_openrouter = {
+            "gemini-flash-latest": "google/gemini-3-flash-preview",
+            "gemini-2.5-flash": "google/gemini-2.5-flash",
+            "gemini-2.5-flash-lite": "google/gemini-2.5-flash-lite",
+            "gemini-2.5-pro": "google/gemini-2.5-pro",
+            "gemini-3-flash-preview": "google/gemini-3-flash-preview",
+        }
+        config.fallback_model = gemini_to_openrouter.get(
+            config.fallback_model, config.fallback_model
+        )
+
     return config
 
 
@@ -664,9 +684,6 @@ def save_config(config: Config) -> bool:
 
     # Verify the save by reading back a key field
     saved = db.get_settings()
-    if saved.get('gemini_api_key') != config.gemini_api_key:
-        print(f"WARNING: Config save verification failed - gemini_api_key mismatch")
-        return False
     if saved.get('openrouter_api_key') != config.openrouter_api_key:
         print(f"WARNING: Config save verification failed - openrouter_api_key mismatch")
         return False
@@ -675,9 +692,7 @@ def save_config(config: Config) -> bool:
 
 
 def load_env_keys(config: Config) -> Config:
-    """Load API keys from environment variables if not already set."""
-    if not config.gemini_api_key:
-        config.gemini_api_key = os.environ.get("GEMINI_API_KEY", "")
+    """Load API key from environment variable if not already set."""
     if not config.openrouter_api_key:
         config.openrouter_api_key = os.environ.get("OPENROUTER_API_KEY", "")
     return config
@@ -712,43 +727,36 @@ def is_favorite_configured(config: Config, favorite_num: int) -> bool:
     return is_preset_configured(config, preset)
 
 
-def get_active_provider_and_model(config: Config) -> tuple[str, str]:
-    """Get the provider and model based on the active model preset.
+def get_active_model(config: Config) -> str:
+    """Get the currently active model based on the active model preset.
 
     Returns:
-        Tuple of (provider, model) based on active_model_preset.
+        Model ID based on active_model_preset.
         Falls back to primary if the active preset is not configured.
     """
     preset = config.active_model_preset
 
     if preset == "primary" and is_preset_configured(config, "primary"):
-        return (config.primary_provider, config.primary_model)
+        return config.primary_model
     elif preset == "fallback" and is_preset_configured(config, "fallback"):
-        return (config.fallback_provider, config.fallback_model)
+        return config.fallback_model
 
     # Default to primary
     if is_preset_configured(config, "primary"):
-        return (config.primary_provider, config.primary_model)
+        return config.primary_model
 
-    # Ultimate fallback: use selected_provider and corresponding model
-    provider = config.selected_provider
-    if provider == "gemini":
-        model = config.gemini_model
-    elif provider == "openrouter":
-        model = config.openrouter_model
-    else:
-        model = config.gemini_model  # Fallback
-    return (provider, model)
+    # Ultimate fallback: use selected_model
+    return config.selected_model or "google/gemini-3-flash-preview"
 
 
-def get_fallback_provider_and_model(config: Config) -> tuple[str, str] | None:
-    """Get the fallback provider and model if configured.
+def get_fallback_model(config: Config) -> str | None:
+    """Get the fallback model if configured.
 
     Returns:
-        Tuple of (provider, model) for the fallback, or None if not configured.
+        Model ID for the fallback, or None if not configured.
     """
     if is_preset_configured(config, "fallback"):
-        return (config.fallback_provider, config.fallback_model)
+        return config.fallback_model
     return None
 
 
@@ -760,7 +768,7 @@ def get_preset_display_name(config: Config, preset: str) -> str:
         preset: "primary" or "fallback"
 
     Returns:
-        Display name (e.g., "Gemini Flash (Latest)", etc.)
+        Display name (e.g., "Gemini 3 Flash", etc.)
     """
     if preset == "primary" and config.primary_name:
         return config.primary_name
@@ -768,8 +776,22 @@ def get_preset_display_name(config: Config, preset: str) -> str:
         return config.fallback_name
     else:
         # For unknown preset, show the active model display name
-        provider, model = get_active_provider_and_model(config)
-        return get_model_display_name(model, provider)
+        model = get_active_model(config)
+        return get_model_display_name(model)
+
+
+# Legacy compatibility functions
+def get_active_provider_and_model(config: Config) -> tuple[str, str]:
+    """Legacy function - returns ("openrouter", model) for compatibility."""
+    return ("openrouter", get_active_model(config))
+
+
+def get_fallback_provider_and_model(config: Config) -> tuple[str, str] | None:
+    """Legacy function - returns ("openrouter", model) for compatibility."""
+    model = get_fallback_model(config)
+    if model:
+        return ("openrouter", model)
+    return None
 
 
 # =============================================================================

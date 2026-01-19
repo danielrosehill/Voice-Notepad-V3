@@ -25,17 +25,17 @@ from PyQt6.QtGui import QFont
 import pyqtgraph as pg
 
 from .database_mongo import get_db
-from .config import GEMINI_MODELS, OPENROUTER_MODELS
+from .config import OPENROUTER_MODELS
 
 
 # Build a lookup dict from model_id -> display_name
 MODEL_DISPLAY_NAMES = {}
-for model_id, display_name in GEMINI_MODELS + OPENROUTER_MODELS:
+for model_id, display_name in OPENROUTER_MODELS:
     MODEL_DISPLAY_NAMES[model_id] = display_name
 
-# Provider display names
+# Provider display names (keep gemini for legacy data display)
 PROVIDER_DISPLAY_NAMES = {
-    "gemini": "Google Gemini",
+    "gemini": "Google Gemini (Legacy)",
     "openrouter": "OpenRouter",
 }
 

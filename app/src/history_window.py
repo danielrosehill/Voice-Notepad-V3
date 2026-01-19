@@ -1020,8 +1020,8 @@ class SearchTab(QWidget):
             return
 
         # Check for API key
-        if not self.config or not self.config.gemini_api_key:
-            self.status_label.setText("Gemini API key required for semantic search")
+        if not self.config or not self.config.openrouter_api_key:
+            self.status_label.setText("OpenRouter API key required for semantic search")
             return
 
         # Disable search while processing
@@ -1038,7 +1038,7 @@ class SearchTab(QWidget):
         # Start search in background thread
         self._search_worker = SemanticSearchWorker(
             query,
-            self.config.gemini_api_key,
+            self.config.openrouter_api_key,
             date_from,
             date_to,
         )
@@ -1139,8 +1139,8 @@ class SearchTab(QWidget):
 
     def _on_generate_embeddings(self):
         """Manually trigger embedding generation."""
-        if not self.config or not self.config.gemini_api_key:
-            self.status_label.setText("Gemini API key required")
+        if not self.config or not self.config.openrouter_api_key:
+            self.status_label.setText("OpenRouter API key required")
             return
 
         try:
@@ -1158,7 +1158,7 @@ class SearchTab(QWidget):
                 return
 
             # Get batch processor
-            processor = get_batch_processor(self.config.gemini_api_key)
+            processor = get_batch_processor(self.config.openrouter_api_key)
             if processor is None:
                 self.status_label.setText("Failed to initialize processor")
                 return

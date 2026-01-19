@@ -12,7 +12,7 @@ from PyQt6.QtGui import QFont
 
 from .config import (
     Config, save_config, load_env_keys,
-    GEMINI_MODELS, OPENROUTER_MODELS,
+    OPENROUTER_MODELS,
     MODEL_TIERS,
     TRANSLATION_LANGUAGES, get_language_display_name, get_language_flag,
 )
@@ -74,7 +74,7 @@ class SettingsToast(QLabel):
 
 
 class APIKeysWidget(QWidget):
-    """API Keys configuration section."""
+    """API Key configuration section."""
 
     def __init__(self, config: Config, settings_parent=None, parent=None):
         super().__init__(parent)
@@ -88,38 +88,24 @@ class APIKeysWidget(QWidget):
         layout.setContentsMargins(16, 16, 16, 16)
 
         # Title
-        title = QLabel("API Keys")
+        title = QLabel("API Key")
         title.setFont(QFont("Sans", 14, QFont.Weight.Bold))
         layout.addWidget(title)
 
         desc = QLabel(
-            "Configure API keys for transcription providers. "
-            "Gemini direct is recommended for access to the dynamic 'gemini-flash-latest' endpoint."
+            "Configure your OpenRouter API key to access Gemini models. "
+            "Get your key at openrouter.ai"
         )
         desc.setWordWrap(True)
         desc.setStyleSheet("color: #666; margin-bottom: 12px;")
         layout.addWidget(desc)
 
-        # API Keys form
+        # API Key form
         api_form = QFormLayout()
         api_form.setSpacing(12)
         api_form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.ExpandingFieldsGrow)
 
-        # Gemini (recommended)
-        self.gemini_key = QLineEdit()
-        self.gemini_key.setText(self.config.gemini_api_key)
-        self.gemini_key.setPlaceholderText("AI...")
-        self.gemini_key.setEchoMode(QLineEdit.EchoMode.Password)
-        self.gemini_key.textChanged.connect(lambda: self._save_key("gemini_api_key", self.gemini_key.text()))
-
-        gem_layout = QVBoxLayout()
-        gem_layout.addWidget(self.gemini_key)
-        gem_help = QLabel("⭐ Recommended: Supports dynamic 'gemini-flash-latest' endpoint")
-        gem_help.setStyleSheet("color: #28a745; font-size: 10px; margin-left: 2px;")
-        gem_layout.addWidget(gem_help)
-        api_form.addRow("Gemini API Key:", gem_layout)
-
-        # OpenRouter (alternative)
+        # OpenRouter API Key
         self.openrouter_key = QLineEdit()
         self.openrouter_key.setText(self.config.openrouter_api_key)
         self.openrouter_key.setPlaceholderText("sk-or-v1-...")
@@ -128,7 +114,7 @@ class APIKeysWidget(QWidget):
 
         or_layout = QVBoxLayout()
         or_layout.addWidget(self.openrouter_key)
-        or_help = QLabel("Alternative: Access Gemini models via OpenAI-compatible API")
+        or_help = QLabel("All models are accessed through OpenRouter's unified API")
         or_help.setStyleSheet("color: #666; font-size: 10px; margin-left: 2px;")
         or_layout.addWidget(or_help)
         api_form.addRow("OpenRouter API Key:", or_layout)
@@ -136,7 +122,7 @@ class APIKeysWidget(QWidget):
         layout.addLayout(api_form)
 
         # Available models section
-        models_group = QGroupBox("Available Models by Provider")
+        models_group = QGroupBox("Available Models")
         models_group.setStyleSheet("""
             QGroupBox {
                 font-weight: bold;
@@ -149,16 +135,9 @@ class APIKeysWidget(QWidget):
         models_layout = QVBoxLayout(models_group)
         models_layout.setSpacing(8)
 
-        # Gemini models (primary)
-        gem_models = [name for _, name in GEMINI_MODELS]
-        gem_label = QLabel("<b>Gemini (Direct):</b> " + ", ".join(gem_models))
-        gem_label.setWordWrap(True)
-        gem_label.setStyleSheet("padding: 4px;")
-        models_layout.addWidget(gem_label)
-
         # OpenRouter models
         or_models = [name for _, name in OPENROUTER_MODELS]
-        or_label = QLabel("<b>OpenRouter:</b> " + ", ".join(or_models))
+        or_label = QLabel("<b>Gemini Models:</b> " + ", ".join(or_models))
         or_label.setWordWrap(True)
         or_label.setStyleSheet("padding: 4px;")
         models_layout.addWidget(or_label)
@@ -179,13 +158,8 @@ class APIKeysWidget(QWidget):
     def refresh(self):
         """Refresh display from current config values."""
         # Block signals to prevent triggering saves while refreshing
-        self.gemini_key.blockSignals(True)
         self.openrouter_key.blockSignals(True)
-
-        self.gemini_key.setText(self.config.gemini_api_key)
         self.openrouter_key.setText(self.config.openrouter_api_key)
-
-        self.gemini_key.blockSignals(False)
         self.openrouter_key.blockSignals(False)
 
 
@@ -944,7 +918,7 @@ class DatabaseWidget(QWidget):
 
 
 class ModelSelectionWidget(QWidget):
-    """Model and provider selection section."""
+    """Model selection section."""
 
     def __init__(self, config: Config, settings_parent=None, parent=None):
         super().__init__(parent)
@@ -963,47 +937,19 @@ class ModelSelectionWidget(QWidget):
         layout.addWidget(title)
 
         desc = QLabel(
-            "Choose your transcription provider and model. "
+            "Choose your transcription model. All models are accessed via OpenRouter. "
             "Once you find a model that works within your budget, you typically won't need to change it often."
         )
         desc.setWordWrap(True)
         desc.setStyleSheet("color: #666; margin-bottom: 12px;")
         layout.addWidget(desc)
 
-        # Provider and model selection
-        selection_group = QGroupBox("Provider & Model")
+        # Model selection
+        selection_group = QGroupBox("Model Selection")
         selection_layout = QVBoxLayout(selection_group)
         selection_layout.setSpacing(12)
 
-        # Provider selection
-        provider_layout = QHBoxLayout()
-        provider_layout.addWidget(QLabel("Provider:"))
-
-        self.provider_combo = QComboBox()
-        self.provider_combo.setIconSize(QSize(16, 16))
-
-        # Add providers with icons (Gemini first as recommended)
-        providers = [
-            ("Google Gemini (Recommended)", "google"),
-            ("OpenRouter", "openrouter"),
-        ]
-        for display_name, provider_key in providers:
-            icon = get_provider_icon(provider_key)
-            self.provider_combo.addItem(icon, display_name)
-
-        # Set current provider
-        provider_map = {
-            "gemini": "Google Gemini (Recommended)",
-            "openrouter": "OpenRouter",
-        }
-        provider_display = provider_map.get(self.config.selected_provider, self.config.selected_provider.title())
-        self.provider_combo.setCurrentText(provider_display)
-        self.provider_combo.currentTextChanged.connect(self._on_provider_changed)
-        provider_layout.addWidget(self.provider_combo, 1)
-
-        selection_layout.addLayout(provider_layout)
-
-        # Model selection
+        # Model dropdown
         model_layout = QHBoxLayout()
         model_layout.addWidget(QLabel("Model:"))
 
@@ -1071,12 +1017,10 @@ class ModelSelectionWidget(QWidget):
         info_layout.setSpacing(6)
 
         info_text = QLabel(
-            "<b>Gemini Flash (Latest)</b> is a dynamic endpoint that points to the latest "
-            "Flash variant operated by Google.<br><br>"
-            "The <b>Budget</b> selector chooses Flash Lite for lower cost, but the regular "
-            "model is strongly recommended.<br><br>"
-            "<b>Pro</b> is also available but does not significantly improve transcript quality "
-            "in my experience."
+            "<b>Gemini 3 Flash</b> is the recommended default model for best quality.<br><br>"
+            "The <b>Budget</b> selector chooses Flash Lite for lower cost, but the standard "
+            "model is recommended for most use cases.<br><br>"
+            "<b>Pro</b> models are available but typically don't significantly improve transcript quality."
         )
         info_text.setWordWrap(True)
         info_text.setStyleSheet("color: #495057; font-size: 11px; background: transparent; border: none;")
@@ -1088,7 +1032,7 @@ class ModelSelectionWidget(QWidget):
         default_layout = QHBoxLayout()
         default_layout.addStretch()
         self.default_btn = QPushButton("Set Default")
-        self.default_btn.setToolTip("Reset to Gemini Flash (Latest)")
+        self.default_btn.setToolTip("Reset to Gemini 3 Flash")
         self.default_btn.setFixedWidth(100)
         self.default_btn.clicked.connect(self._set_default)
         default_layout.addWidget(self.default_btn)
@@ -1113,30 +1057,6 @@ class ModelSelectionWidget(QWidget):
         presets_desc.setWordWrap(True)
         presets_desc.setStyleSheet("color: #666; font-size: 11px; margin-bottom: 8px;")
         presets_layout.addWidget(presets_desc)
-
-        # Provider recommendation note
-        provider_note_frame = QFrame()
-        provider_note_frame.setFrameShape(QFrame.Shape.StyledPanel)
-        provider_note_frame.setStyleSheet("""
-            QFrame {
-                background-color: #fff3cd;
-                border: 1px solid #ffc107;
-                border-radius: 4px;
-            }
-        """)
-        provider_note_layout = QHBoxLayout(provider_note_frame)
-        provider_note_layout.setContentsMargins(10, 8, 10, 8)
-        provider_note_icon = QLabel("💡")
-        provider_note_icon.setStyleSheet("background: transparent; border: none; font-size: 14px;")
-        provider_note_layout.addWidget(provider_note_icon)
-        provider_note_text = QLabel(
-            "<b>Tip:</b> For maximum resilience, use different providers for primary and fallback. "
-            "This protects against provider-level outages."
-        )
-        provider_note_text.setWordWrap(True)
-        provider_note_text.setStyleSheet("background: transparent; border: none; color: #856404; font-size: 11px;")
-        provider_note_layout.addWidget(provider_note_text, 1)
-        presets_layout.addWidget(provider_note_frame)
 
         # Failover checkbox
         self.failover_checkbox = QCheckBox("Enable automatic failover")
@@ -1187,18 +1107,6 @@ class ModelSelectionWidget(QWidget):
             name_edit.textChanged.connect(lambda text, k=preset_key: self._on_preset_name_changed(k, text))
             preset_inner_layout.addWidget(name_edit)
 
-            # Provider dropdown
-            provider_combo = QComboBox()
-            provider_combo.setIconSize(QSize(16, 16))
-            provider_combo.addItem(get_provider_icon("google"), "Google Gemini", "gemini")
-            provider_combo.addItem(get_provider_icon("openrouter"), "OpenRouter", "openrouter")
-            current_provider = getattr(self.config, f"{preset_key}_provider", "") or "gemini"
-            idx = provider_combo.findData(current_provider)
-            if idx >= 0:
-                provider_combo.setCurrentIndex(idx)
-            provider_combo.currentIndexChanged.connect(lambda idx, k=preset_key: self._on_preset_provider_changed(k))
-            preset_inner_layout.addWidget(provider_combo)
-
             # Model dropdown
             model_combo = QComboBox()
             model_combo.setIconSize(QSize(16, 16))
@@ -1208,14 +1116,13 @@ class ModelSelectionWidget(QWidget):
             # Store widget references
             self._preset_widgets[preset_key] = {
                 "name": name_edit,
-                "provider": provider_combo,
                 "model": model_combo,
             }
 
             # Add to horizontal row (both get equal space)
             presets_row.addWidget(preset_frame, 1)
 
-            # Populate model dropdown based on current provider
+            # Populate model dropdown
             self._update_preset_model_combo(preset_key)
 
         presets_layout.addLayout(presets_row)
@@ -1234,20 +1141,14 @@ class ModelSelectionWidget(QWidget):
         layout.addStretch()
 
     def _update_model_combo(self):
-        """Update the model dropdown based on selected provider."""
+        """Update the model dropdown."""
         self.model_combo.blockSignals(True)
         self.model_combo.clear()
 
-        provider = self.config.selected_provider.lower()
-        if provider == "gemini":
-            models = GEMINI_MODELS
-            current_model = self.config.gemini_model
-        else:  # openrouter
-            models = OPENROUTER_MODELS
-            current_model = self.config.openrouter_model
+        current_model = self.config.selected_model
 
         # Add models with model originator icon
-        for model_id, display_name in models:
+        for model_id, display_name in OPENROUTER_MODELS:
             model_icon = get_model_icon(model_id)
             self.model_combo.addItem(model_icon, display_name, model_id)
 
@@ -1258,30 +1159,12 @@ class ModelSelectionWidget(QWidget):
 
         self.model_combo.blockSignals(False)
 
-    def _on_provider_changed(self, provider_display: str):
-        """Handle provider change."""
-        display_to_internal = {
-            "Google Gemini (Recommended)": "gemini",
-            "OpenRouter": "openrouter",
-        }
-        self.config.selected_provider = display_to_internal.get(provider_display, "gemini")
-        self._update_model_combo()
-        self._update_tier_buttons()
-        save_config(self.config)
-        if self.settings_parent:
-            self.settings_parent.notify_saved()
-
     def _on_model_changed(self, index: int):
         """Handle model selection change."""
         if index < 0:
             return
         model_id = self.model_combo.currentData()
-        provider = self.config.selected_provider.lower()
-
-        if provider == "gemini":
-            self.config.gemini_model = model_id
-        else:  # openrouter
-            self.config.openrouter_model = model_id
+        self.config.selected_model = model_id
 
         save_config(self.config)
         if self.settings_parent:
@@ -1289,10 +1172,8 @@ class ModelSelectionWidget(QWidget):
         self._update_tier_buttons()
 
     def _set_model_tier(self, tier: str):
-        """Set the model to the standard or budget tier for the current provider."""
-        provider = self.config.selected_provider.lower()
-        tiers = MODEL_TIERS.get(provider, {})
-        model_id = tiers.get(tier)
+        """Set the model to the standard or budget tier."""
+        model_id = MODEL_TIERS.get(tier)
 
         if model_id:
             idx = self.model_combo.findData(model_id)
@@ -1301,31 +1182,23 @@ class ModelSelectionWidget(QWidget):
 
     def _update_tier_buttons(self):
         """Update tier button checked states based on current model."""
-        provider = self.config.selected_provider.lower()
-        tiers = MODEL_TIERS.get(provider, {})
         current_model = self.model_combo.currentData()
 
         self.standard_btn.blockSignals(True)
         self.budget_btn.blockSignals(True)
 
-        self.standard_btn.setChecked(current_model == tiers.get("standard"))
-        self.budget_btn.setChecked(current_model == tiers.get("budget"))
+        self.standard_btn.setChecked(current_model == MODEL_TIERS.get("standard"))
+        self.budget_btn.setChecked(current_model == MODEL_TIERS.get("budget"))
 
         self.standard_btn.blockSignals(False)
         self.budget_btn.blockSignals(False)
 
     def _set_default(self):
-        """Reset to default: Gemini provider with gemini-flash-latest model."""
-        # Set provider to Gemini
-        self.provider_combo.setCurrentText("Google Gemini (Recommended)")
-        self.config.selected_provider = "gemini"
-
-        # Set model to gemini-flash-latest
-        self._update_model_combo()
-        idx = self.model_combo.findData("gemini-flash-latest")
+        """Reset to default: Gemini 3 Flash model."""
+        idx = self.model_combo.findData("google/gemini-3-flash-preview")
         if idx >= 0:
             self.model_combo.setCurrentIndex(idx)
-        self.config.gemini_model = "gemini-flash-latest"
+        self.config.selected_model = "google/gemini-3-flash-preview"
 
         save_config(self.config)
         if self.settings_parent:
@@ -1350,18 +1223,6 @@ class ModelSelectionWidget(QWidget):
         if self.settings_parent:
             self.settings_parent.notify_saved()
 
-    def _on_preset_provider_changed(self, preset_key: str):
-        """Handle preset provider change."""
-        widgets = self._preset_widgets.get(preset_key)
-        if not widgets:
-            return
-        provider = widgets["provider"].currentData()
-        setattr(self.config, f"{preset_key}_provider", provider)
-        self._update_preset_model_combo(preset_key)
-        save_config(self.config)
-        if self.settings_parent:
-            self.settings_parent.notify_saved()
-
     def _on_preset_model_changed(self, preset_key: str):
         """Handle preset model change."""
         widgets = self._preset_widgets.get(preset_key)
@@ -1375,25 +1236,18 @@ class ModelSelectionWidget(QWidget):
                 self.settings_parent.notify_saved()
 
     def _update_preset_model_combo(self, preset_key: str):
-        """Update the model dropdown for a preset based on its provider."""
+        """Update the model dropdown for a preset."""
         widgets = self._preset_widgets.get(preset_key)
         if not widgets:
             return
 
         model_combo = widgets["model"]
-        provider_combo = widgets["provider"]
 
         model_combo.blockSignals(True)
         model_combo.clear()
 
-        provider = provider_combo.currentData() or "gemini"
-        if provider == "gemini":
-            models = GEMINI_MODELS
-        else:
-            models = OPENROUTER_MODELS
-
         # Add models with icons
-        for model_id, display_name in models:
+        for model_id, display_name in OPENROUTER_MODELS:
             model_icon = get_model_icon(model_id)
             model_combo.addItem(model_icon, display_name, model_id)
 
@@ -1410,17 +1264,14 @@ class ModelSelectionWidget(QWidget):
         """Swap primary and fallback configurations."""
         # Store current primary values
         old_primary_name = self.config.primary_name
-        old_primary_provider = self.config.primary_provider
         old_primary_model = self.config.primary_model
 
         # Move fallback to primary
         self.config.primary_name = self.config.fallback_name
-        self.config.primary_provider = self.config.fallback_provider
         self.config.primary_model = self.config.fallback_model
 
         # Move old primary to fallback
         self.config.fallback_name = old_primary_name
-        self.config.fallback_provider = old_primary_provider
         self.config.fallback_model = old_primary_model
 
         # Save config
@@ -1436,14 +1287,6 @@ class ModelSelectionWidget(QWidget):
                 widgets["name"].blockSignals(True)
                 widgets["name"].setText(getattr(self.config, f"{preset_key}_name", ""))
                 widgets["name"].blockSignals(False)
-
-                # Update provider dropdown
-                widgets["provider"].blockSignals(True)
-                provider = getattr(self.config, f"{preset_key}_provider", "gemini")
-                idx = widgets["provider"].findData(provider)
-                if idx >= 0:
-                    widgets["provider"].setCurrentIndex(idx)
-                widgets["provider"].blockSignals(False)
 
                 # Update model dropdown
                 self._update_preset_model_combo(preset_key)
