@@ -642,8 +642,12 @@ def load_config() -> Config:
     return config
 
 
-def save_config(config: Config) -> None:
-    """Save configuration to Mongita database."""
+def save_config(config: Config) -> bool:
+    """Save configuration to Mongita database.
+
+    Returns:
+        True if save succeeded, False otherwise.
+    """
     CONFIG_DIR.mkdir(parents=True, exist_ok=True)
 
     try:
@@ -652,7 +656,22 @@ def save_config(config: Config) -> None:
         from database_mongo import get_db
 
     db = get_db()
-    db.save_settings(asdict(config))
+    config_dict = asdict(config)
+
+    if not db.save_settings(config_dict):
+        print("ERROR: Failed to save configuration to database")
+        return False
+
+    # Verify the save by reading back a key field
+    saved = db.get_settings()
+    if saved.get('gemini_api_key') != config.gemini_api_key:
+        print(f"WARNING: Config save verification failed - gemini_api_key mismatch")
+        return False
+    if saved.get('openrouter_api_key') != config.openrouter_api_key:
+        print(f"WARNING: Config save verification failed - openrouter_api_key mismatch")
+        return False
+
+    return True
 
 
 def load_env_keys(config: Config) -> Config:

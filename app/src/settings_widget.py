@@ -169,9 +169,24 @@ class APIKeysWidget(QWidget):
     def _save_key(self, key_name: str, value: str):
         """Save API key to config."""
         setattr(self.config, key_name, value)
-        save_config(self.config)
-        if self.settings_parent:
-            self.settings_parent.notify_saved()
+        if save_config(self.config):
+            if self.settings_parent:
+                self.settings_parent.notify_saved()
+        else:
+            # Save failed - show error and revert display to actual saved value
+            print(f"ERROR: Failed to save {key_name}")
+
+    def refresh(self):
+        """Refresh display from current config values."""
+        # Block signals to prevent triggering saves while refreshing
+        self.gemini_key.blockSignals(True)
+        self.openrouter_key.blockSignals(True)
+
+        self.gemini_key.setText(self.config.gemini_api_key)
+        self.openrouter_key.setText(self.config.openrouter_api_key)
+
+        self.gemini_key.blockSignals(False)
+        self.openrouter_key.blockSignals(False)
 
 
 class AudioMicWidget(QWidget):
@@ -1805,8 +1820,13 @@ class SettingsWidget(QWidget):
 
         # Add sections as tabs - pass self as settings_parent for toast notifications
         # Icons help users quickly identify tabs
-        self.tabs.addTab(ModelSelectionWidget(self.config, settings_parent=self), "🤖 Model")
-        self.tabs.addTab(APIKeysWidget(self.config, settings_parent=self), "🔑 API Keys")
+        # Keep references to widgets that need refresh support
+        self.model_widget = ModelSelectionWidget(self.config, settings_parent=self)
+        self.tabs.addTab(self.model_widget, "🤖 Model")
+
+        self.api_keys_widget = APIKeysWidget(self.config, settings_parent=self)
+        self.tabs.addTab(self.api_keys_widget, "🔑 API Keys")
+
         self.tabs.addTab(AudioMicWidget(self.config, self.recorder, settings_parent=self), "🎤 Mic")
         self.tabs.addTab(BehaviorWidget(self.config, settings_parent=self), "⚙️ Behavior")
         self.tabs.addTab(PersonalizationWidget(self.config, settings_parent=self), "👤 Personal")
@@ -1830,8 +1850,10 @@ class SettingsWidget(QWidget):
         self.settings_saved.emit()
 
     def refresh(self):
-        """Refresh all sub-widgets."""
-        pass  # No specific refresh needed
+        """Refresh all sub-widgets to show current config values."""
+        # Refresh API keys widget to ensure it shows current saved values
+        if hasattr(self, 'api_keys_widget'):
+            self.api_keys_widget.refresh()
 
 
 class SettingsDialog(QDialog):
