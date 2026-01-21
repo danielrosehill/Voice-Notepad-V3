@@ -80,9 +80,13 @@ class OpenRouterClient(TranscriptionClient):
             model=self.model,
             messages=[
                 {
+                    "role": "system",
+                    "content": prompt
+                },
+                {
                     "role": "user",
                     "content": [
-                        {"type": "text", "text": prompt},
+                        {"type": "text", "text": "Transcribe and clean up this audio recording."},
                         {
                             "type": "input_audio",
                             "input_audio": {
