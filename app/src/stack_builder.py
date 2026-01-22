@@ -764,7 +764,7 @@ class StackBuilderWidget(QWidget):
         self._block_all_signals(True)
 
         self.infer_format_checkbox.setChecked(
-            getattr(self.config, 'prompt_infer_format', True)
+            getattr(self.config, 'prompt_infer_format', False)
         )
 
         # Base preset (General vs Verbatim vs Translation)

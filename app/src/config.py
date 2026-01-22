@@ -1490,7 +1490,7 @@ def build_cleanup_prompt(config: Config, use_prompt_library: bool = False, audio
     # Iterate over sections to conditionally include format_detection
     for section_key, section_data in FOUNDATION_PROMPT_SECTIONS.items():
         # Skip format_detection if prompt_infer_format is disabled
-        if section_key == "format_detection" and not getattr(config, 'prompt_infer_format', True):
+        if section_key == "format_detection" and not getattr(config, 'prompt_infer_format', False):
             continue
         for instruction in section_data["instructions"]:
             # Replace hardcoded name with configured short_name or user_name
