@@ -17,7 +17,7 @@ from pathlib import Path
 import re
 
 # Fallback version (updated by release.sh)
-_FALLBACK_VERSION = "1.13.11"
+_FALLBACK_VERSION = "1.13.13"
 
 
 def get_version() -> str:
@@ -306,8 +306,8 @@ class AboutWidget(QWidget):
         providers_layout = QVBoxLayout(providers_group)
 
         providers = [
-            "Google Gemini (Recommended) - gemini-flash-latest, gemini-2.5-flash, gemini-2.5-pro",
-            "OpenRouter - Access Gemini models via OpenAI-compatible API",
+            "Google Gemini via OpenRouter - Gemini 3 Flash (Default), Gemini 3 Pro",
+            "All models accessed through OpenRouter's unified API",
         ]
         for p in providers:
             p_label = QLabel(p)

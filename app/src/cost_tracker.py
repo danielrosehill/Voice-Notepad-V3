@@ -1,31 +1,48 @@
 """Cost tracking for API usage."""
 
 import json
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, asdict
 from datetime import datetime, date
 from pathlib import Path
+from threading import Lock
 from typing import Optional
 
 
 USAGE_DIR = Path.home() / ".config" / "voice-notepad-v3" / "usage"
 
+# Shared thread pool for background I/O operations (shared with database)
+_io_executor: Optional[ThreadPoolExecutor] = None
+_executor_lock = Lock()
 
-# Pricing per million tokens (approximate, as of Dec 2024)
+
+def get_io_executor() -> ThreadPoolExecutor:
+    """Get or create the shared I/O thread pool."""
+    global _io_executor
+    if _io_executor is None:
+        with _executor_lock:
+            if _io_executor is None:
+                _io_executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="io_worker")
+    return _io_executor
+
+
+# Pricing per million tokens (approximate, as of Jan 2025)
 # Audio models have different pricing structures
 MODEL_PRICING = {
-    # Gemini models - audio input is typically charged differently
-    # Prices are per million tokens for output (audio input often cheaper/free)
+    # Gemini 3 models (primary supported models)
+    "gemini-3-flash-preview": {"input": 0.10, "output": 0.40},
+    "gemini-3-pro-preview": {"input": 1.25, "output": 5.00},
+    "google/gemini-3-flash-preview": {"input": 0.10, "output": 0.40},
+    "google/gemini-3-pro-preview": {"input": 1.25, "output": 5.00},
+    # Legacy Gemini models (deprecated, kept for historical cost tracking)
     "gemini-flash-latest": {"input": 0.075, "output": 0.30},
     "gemini-2.5-flash": {"input": 0.075, "output": 0.30},
     "gemini-2.5-flash-lite": {"input": 0.02, "output": 0.10},
     "gemini-2.5-pro": {"input": 1.25, "output": 5.00},
-    "gemini-3-flash-preview": {"input": 0.10, "output": 0.40},  # Preview pricing estimate
-    # OpenRouter Gemini models (same pricing)
     "google/gemini-2.5-flash": {"input": 0.075, "output": 0.30},
     "google/gemini-2.5-flash-lite": {"input": 0.02, "output": 0.10},
     "google/gemini-2.0-flash-001": {"input": 0.075, "output": 0.30},
     "google/gemini-2.0-flash-lite-001": {"input": 0.02, "output": 0.10},
-    "google/gemini-3-flash-preview": {"input": 0.10, "output": 0.40},
 }
 
 
@@ -48,12 +65,17 @@ class UsageRecord:
 
 
 class CostTracker:
-    """Tracks API usage and costs."""
+    """Tracks API usage and costs.
+
+    File writes are performed asynchronously in a background thread
+    to avoid blocking the main event loop during transcription.
+    """
 
     def __init__(self):
         USAGE_DIR.mkdir(parents=True, exist_ok=True)
         self._today_file = USAGE_DIR / f"{date.today().isoformat()}.json"
         self._records: list[UsageRecord] = []
+        self._lock = Lock()  # Protect in-memory records
         self._load_today()
 
     def _load_today(self):
@@ -69,9 +91,25 @@ class CostTracker:
             self._records = []
 
     def _save_today(self):
-        """Save today's usage records."""
+        """Save today's usage records (runs in background thread)."""
         with open(self._today_file, "w") as f:
             json.dump([r.to_dict() for r in self._records], f, indent=2)
+
+    def _save_today_async(self):
+        """Queue file save to background thread."""
+        # Create a snapshot of records to avoid race conditions
+        with self._lock:
+            records_snapshot = [r.to_dict() for r in self._records]
+            filepath = self._today_file
+
+        def do_save():
+            try:
+                with open(filepath, "w") as f:
+                    json.dump(records_snapshot, f, indent=2)
+            except Exception as e:
+                print(f"Error saving cost tracker data: {e}")
+
+        get_io_executor().submit(do_save)
 
     def _check_date_rollover(self):
         """Check if we've crossed midnight and need a new file."""
@@ -87,7 +125,10 @@ class CostTracker:
         input_tokens: int,
         output_tokens: int
     ) -> float:
-        """Record API usage and return estimated cost."""
+        """Record API usage and return estimated cost.
+
+        File write is performed asynchronously to avoid blocking.
+        """
         self._check_date_rollover()
 
         # Calculate cost
@@ -103,8 +144,11 @@ class CostTracker:
             estimated_cost=cost
         )
 
-        self._records.append(record)
-        self._save_today()
+        with self._lock:
+            self._records.append(record)
+
+        # Save asynchronously to avoid blocking the transcription flow
+        self._save_today_async()
 
         return cost
 

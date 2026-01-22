@@ -54,18 +54,17 @@ CONFIG_FILE = CONFIG_DIR / "config.json"
 
 # Available models via OpenRouter (model_id, display_name)
 # All models are accessed through OpenRouter's unified API
+# Note: Gemini 2.5 models removed as deprecated by Google
 OPENROUTER_MODELS = [
     ("google/gemini-3-flash-preview", "Gemini 3 Flash (Default)"),
     ("google/gemini-3-pro-preview", "Gemini 3 Pro"),
-    ("google/gemini-2.5-flash", "Gemini 2.5 Flash"),
-    ("google/gemini-2.5-flash-lite", "Gemini 2.5 Flash Lite (Budget)"),
-    ("google/gemini-2.5-pro", "Gemini 2.5 Pro"),
 ]
 
 # Standard and Budget model tiers for quick-toggle buttons
+# Both use Gemini 3 models (2.5 deprecated)
 MODEL_TIERS = {
     "standard": "google/gemini-3-flash-preview",
-    "budget": "google/gemini-2.5-flash-lite",
+    "budget": "google/gemini-3-flash-preview",  # No separate budget tier with Gemini 3
 }
 
 # Short audio optimization: use minimal prompt for brief recordings
@@ -171,8 +170,8 @@ class Config:
     primary_name: str = "Gemini 3 Flash"
     primary_model: str = "google/gemini-3-flash-preview"
 
-    fallback_name: str = "Gemini 2.5 Flash"
-    fallback_model: str = "google/gemini-2.5-flash"
+    fallback_name: str = "Gemini 3 Pro"
+    fallback_model: str = "google/gemini-3-pro-preview"
 
     # Enable automatic failover to fallback model if primary fails
     failover_enabled: bool = True
@@ -506,11 +505,11 @@ def _apply_migrations(config: Config) -> Config:
         # Clear legacy field
         config.favorite_1_name = ""
 
-    if config.favorite_2_name and config.fallback_name == "Gemini 2.5 Flash (OpenRouter)":
+    if config.favorite_2_name and config.fallback_name in ("Gemini 2.5 Flash (OpenRouter)", "Gemini 2.5 Flash", "Gemini 3 Pro"):
         # User had favorite_2 configured, migrate to fallback
         config.fallback_name = config.favorite_2_name
         config.fallback_provider = config.favorite_2_provider or "openrouter"
-        config.fallback_model = config.favorite_2_model or "google/gemini-2.5-flash"
+        config.fallback_model = config.favorite_2_model or "google/gemini-3-pro-preview"
         # Clear legacy field
         config.favorite_2_name = ""
 
@@ -528,13 +527,15 @@ def _apply_migrations(config: Config) -> Config:
     if config.openrouter_model and not config.selected_model:
         config.selected_model = config.openrouter_model
     # If user was using gemini provider with a model, try to map to OpenRouter equivalent
+    # Note: Gemini 2.5 models are deprecated, redirect to Gemini 3
     if config.selected_provider == "gemini" and config.gemini_model:
         gemini_to_openrouter = {
             "gemini-flash-latest": "google/gemini-3-flash-preview",
-            "gemini-2.5-flash": "google/gemini-2.5-flash",
-            "gemini-2.5-flash-lite": "google/gemini-2.5-flash-lite",
-            "gemini-2.5-pro": "google/gemini-2.5-pro",
+            "gemini-2.5-flash": "google/gemini-3-flash-preview",  # Deprecated -> redirect
+            "gemini-2.5-flash-lite": "google/gemini-3-flash-preview",  # Deprecated -> redirect
+            "gemini-2.5-pro": "google/gemini-3-pro-preview",  # Deprecated -> redirect
             "gemini-3-flash-preview": "google/gemini-3-flash-preview",
+            "gemini-3-pro-preview": "google/gemini-3-pro-preview",
         }
         if not config.selected_model:
             config.selected_model = gemini_to_openrouter.get(
@@ -544,14 +545,15 @@ def _apply_migrations(config: Config) -> Config:
     if not config.selected_model:
         config.selected_model = "google/gemini-3-flash-preview"
 
-    # Migrate primary_provider-based config
+    # Migrate primary_provider-based config (redirect deprecated 2.5 to 3.0)
     if config.primary_provider == "gemini" and config.primary_model:
         gemini_to_openrouter = {
             "gemini-flash-latest": "google/gemini-3-flash-preview",
-            "gemini-2.5-flash": "google/gemini-2.5-flash",
-            "gemini-2.5-flash-lite": "google/gemini-2.5-flash-lite",
-            "gemini-2.5-pro": "google/gemini-2.5-pro",
+            "gemini-2.5-flash": "google/gemini-3-flash-preview",
+            "gemini-2.5-flash-lite": "google/gemini-3-flash-preview",
+            "gemini-2.5-pro": "google/gemini-3-pro-preview",
             "gemini-3-flash-preview": "google/gemini-3-flash-preview",
+            "gemini-3-pro-preview": "google/gemini-3-pro-preview",
         }
         config.primary_model = gemini_to_openrouter.get(
             config.primary_model, config.primary_model
@@ -559,10 +561,11 @@ def _apply_migrations(config: Config) -> Config:
     if config.fallback_provider == "gemini" and config.fallback_model:
         gemini_to_openrouter = {
             "gemini-flash-latest": "google/gemini-3-flash-preview",
-            "gemini-2.5-flash": "google/gemini-2.5-flash",
-            "gemini-2.5-flash-lite": "google/gemini-2.5-flash-lite",
-            "gemini-2.5-pro": "google/gemini-2.5-pro",
+            "gemini-2.5-flash": "google/gemini-3-flash-preview",
+            "gemini-2.5-flash-lite": "google/gemini-3-flash-preview",
+            "gemini-2.5-pro": "google/gemini-3-pro-preview",
             "gemini-3-flash-preview": "google/gemini-3-flash-preview",
+            "gemini-3-pro-preview": "google/gemini-3-pro-preview",
         }
         config.fallback_model = gemini_to_openrouter.get(
             config.fallback_model, config.fallback_model

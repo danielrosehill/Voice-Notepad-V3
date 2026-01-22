@@ -330,7 +330,7 @@ class FileTranscriptionWidget(QWidget):
 
     def _get_selected_model(self) -> str:
         """Get the selected model ID."""
-        return self.model_combo.currentData() or "google/gemini-2.5-flash"
+        return self.model_combo.currentData() or "google/gemini-3-flash-preview"
 
     def browse_file(self):
         """Open file browser to select audio file."""
@@ -403,14 +403,17 @@ class FileTranscriptionWidget(QWidget):
         if not self.selected_file:
             return
 
-        # Get config from parent (main window)
-        main_window = self.window()
-        if not hasattr(main_window, 'config'):
-            self.status_label.setText("Error: Could not access configuration")
-            self.status_label.setStyleSheet("color: #dc3545;")
-            return
+        # Use config passed to constructor, or try to get from parent window
+        config = self.config
+        if config is None:
+            main_window = self.window()
+            if hasattr(main_window, 'config'):
+                config = main_window.config
+            else:
+                self.status_label.setText("Error: Could not access configuration")
+                self.status_label.setStyleSheet("color: #dc3545;")
+                return
 
-        config = main_window.config
         model = self._get_selected_model()
         api_key = config.openrouter_api_key
 
@@ -461,9 +464,11 @@ class FileTranscriptionWidget(QWidget):
 
         model = self._get_selected_model()
 
-        # Get config for other settings
-        main_window = self.window()
-        config = main_window.config
+        # Get config (use self.config or fallback to parent window)
+        config = self.config
+        if config is None:
+            main_window = self.window()
+            config = getattr(main_window, 'config', None)
 
         # Calculate cost
         final_cost = 0.0
@@ -482,7 +487,7 @@ class FileTranscriptionWidget(QWidget):
 
         # Optionally archive audio
         audio_file_path = None
-        if config.store_audio and self.selected_file:
+        if config and config.store_audio and self.selected_file:
             from datetime import datetime
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             audio_filename = f"file_{timestamp}.opus"

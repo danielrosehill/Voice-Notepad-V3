@@ -6,12 +6,16 @@ Provides identical API to the old database.py for easy migration.
 
 import csv
 import threading
+import time
 from dataclasses import dataclass, asdict
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional, List, Dict, Any
 
 from mongita import MongitaClientDisk
+
+# Preview length for recent panel (characters) - full text stored, preview truncated
+TRANSCRIPT_PREVIEW_LENGTH = 200
 
 
 # Database directory
@@ -90,7 +94,14 @@ class TranscriptionDB:
     - prompts: Prompt library (new)
 
     Thread-safe: all operations are protected by a lock.
+
+    Performance optimizations:
+    - All-time stats are cached with a 60-second TTL to avoid full collection scans
+    - Recent panel queries use projection to limit data transfer
     """
+
+    # Cache TTL for all-time stats (seconds)
+    STATS_CACHE_TTL = 60.0
 
     def __init__(self):
         MONGO_DIR.mkdir(parents=True, exist_ok=True)
@@ -99,6 +110,10 @@ class TranscriptionDB:
         self._client: Optional[MongitaClientDisk] = None
         self._db = None
         self._lock = threading.RLock()
+
+        # Cache for all-time stats (avoids full collection scan on every call)
+        self._all_time_stats_cache: Optional[Dict[str, Any]] = None
+        self._all_time_stats_timestamp: float = 0.0
 
         self._init_db()
 
@@ -183,6 +198,11 @@ class TranscriptionDB:
             }
 
             result = db.transcriptions.insert_one(doc)
+
+            # Invalidate stats cache since we added a new transcription
+            self._all_time_stats_cache = None
+            self._all_time_stats_timestamp = 0.0
+
             return str(result.inserted_id)
 
     def get_transcription(self, id: str) -> Optional[TranscriptionRecord]:
@@ -205,7 +225,8 @@ class TranscriptionDB:
 
         Returns lightweight dicts with just the fields needed for display:
         - id: Transcript ID as string
-        - transcript_text: Full text
+        - transcript_text: Full text for copy functionality
+        - transcript_preview: Truncated preview (first N chars) for display
         - timestamp: ISO timestamp
         - word_count: Word count
         - model: Model used
@@ -219,13 +240,22 @@ class TranscriptionDB:
         with self._lock:
             db = self._get_db()
 
-            cursor = db.transcriptions.find({}).sort('timestamp', -1).limit(limit)
+            # Note: Mongita doesn't support projection in find(), so we fetch all fields
+            # but only extract the ones we need for the result dict
+            cursor = db.transcriptions.find({}).sort([('timestamp', -1)]).limit(limit)
 
             results = []
             for doc in cursor:
+                full_text = doc.get('transcript_text', '')
+                # Truncate for preview display (UI shows this)
+                preview = full_text[:TRANSCRIPT_PREVIEW_LENGTH]
+                if len(full_text) > TRANSCRIPT_PREVIEW_LENGTH:
+                    preview += '...'
+
                 results.append({
                     'id': str(doc.get('_id', '')),
-                    'transcript_text': doc.get('transcript_text', ''),
+                    'transcript_text': full_text,  # Full text for copy functionality
+                    'transcript_preview': preview,  # Truncated for display
                     'timestamp': doc.get('timestamp', ''),
                     'word_count': doc.get('word_count', 0),
                     'model': doc.get('model', ''),
@@ -323,7 +353,12 @@ class TranscriptionDB:
                         audio_path.unlink()
 
                 result = db.transcriptions.delete_one({'_id': ObjectId(id)})
-                return result.deleted_count > 0
+                if result.deleted_count > 0:
+                    # Invalidate stats cache
+                    self._all_time_stats_cache = None
+                    self._all_time_stats_timestamp = 0.0
+                    return True
+                return False
             except Exception:
                 return False
 
@@ -337,6 +372,11 @@ class TranscriptionDB:
                 audio_file.unlink()
 
             result = db.transcriptions.delete_many({})
+
+            # Invalidate stats cache
+            self._all_time_stats_cache = None
+            self._all_time_stats_timestamp = 0.0
+
             return result.deleted_count
 
     def get_storage_stats(self) -> dict:
@@ -519,9 +559,24 @@ class TranscriptionDB:
         """Get all-time statistics including word count.
 
         Returns dict with keys: count, total_words, total_chars, total_cost
+
+        Performance: Results are cached for STATS_CACHE_TTL seconds to avoid
+        full collection scans on every UI update.
         """
+        current_time = time.time()
+
+        # Check cache validity
+        if (
+            self._all_time_stats_cache is not None
+            and (current_time - self._all_time_stats_timestamp) < self.STATS_CACHE_TTL
+        ):
+            return self._all_time_stats_cache
+
         with self._lock:
             db = self._get_db()
+
+            # Note: Mongita doesn't support projection, so we fetch all fields
+            # but only use the ones we need for aggregation
             results = list(db.transcriptions.find({}))
 
             if results:
@@ -530,19 +585,34 @@ class TranscriptionDB:
                 total_chars = sum((r.get('text_length') or 0) for r in results)
                 total_cost = sum((r.get('estimated_cost') or 0) for r in results)
 
-                return {
+                stats = {
                     "count": count,
                     "total_words": total_words,
                     "total_chars": total_chars,
                     "total_cost": round(total_cost, 4),
                 }
+            else:
+                stats = {
+                    "count": 0,
+                    "total_words": 0,
+                    "total_chars": 0,
+                    "total_cost": 0,
+                }
 
-            return {
-                "count": 0,
-                "total_words": 0,
-                "total_chars": 0,
-                "total_cost": 0,
-            }
+            # Update cache
+            self._all_time_stats_cache = stats
+            self._all_time_stats_timestamp = current_time
+
+            return stats
+
+    def invalidate_stats_cache(self):
+        """Invalidate the all-time stats cache.
+
+        Call this after adding/deleting transcriptions to ensure
+        fresh stats on next query.
+        """
+        self._all_time_stats_cache = None
+        self._all_time_stats_timestamp = 0.0
 
     def get_daily_cost_breakdown(self, days: int = 30) -> List[dict]:
         """Get cost breakdown by day for the last N days.

@@ -15,30 +15,16 @@ from .config import OPENROUTER_MODELS
 
 
 # Model metadata with additional notes
+# Note: Gemini 2.5 models removed as deprecated by Google
 MODEL_INFO = {
     "google/gemini-3-flash-preview": {
-        "note": "⭐ Latest Gemini 3 Flash preview - fast and capable",
+        "note": "⭐ Gemini 3 Flash - fast, capable, recommended default",
         "audio_support": True,
         "tier": "standard",
         "recommended": True,
     },
     "google/gemini-3-pro-preview": {
-        "note": "Gemini 3 Pro preview - most capable model",
-        "audio_support": True,
-        "tier": "premium",
-    },
-    "google/gemini-2.5-flash": {
-        "note": "Stable Gemini 2.5 Flash with excellent capabilities",
-        "audio_support": True,
-        "tier": "standard",
-    },
-    "google/gemini-2.5-flash-lite": {
-        "note": "Budget-friendly option for cost efficiency",
-        "audio_support": True,
-        "tier": "budget",
-    },
-    "google/gemini-2.5-pro": {
-        "note": "Premium Gemini 2.5 Pro for complex tasks",
+        "note": "Gemini 3 Pro - most capable model for complex tasks",
         "audio_support": True,
         "tier": "premium",
     },

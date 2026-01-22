@@ -2025,8 +2025,6 @@ class MainWindow(QMainWindow):
             if not self.append_mode and not self.accumulated_segments:
                 self.text_output.clear()
                 self.word_count_label.setText("")
-                # Reset append mode if starting fresh
-                self.append_mode = False
 
             # Clear any failed audio state when starting a new recording
             if self.has_failed_audio:
@@ -3053,6 +3051,8 @@ class MainWindow(QMainWindow):
         """
         # Stop visual effects (pulsating, grayscale)
         self._stop_recording_visual_effects()
+        # Reset append mode state
+        self.append_mode = False
         self.record_btn.setText("●")
         self.record_btn.setStyleSheet(self._record_btn_idle_style)
         self.record_btn.setEnabled(True)
@@ -3385,7 +3385,7 @@ class MainWindow(QMainWindow):
         self.title_worker = TitleGeneratorWorker(
             text,
             api_key,
-            "google/gemini-2.5-flash-lite",  # Use fast, cheap model for titles
+            "google/gemini-3-flash-preview",  # Use Gemini 3 Flash for titles
         )
         self.title_worker.finished.connect(self.on_title_generated)
         self.title_worker.error.connect(self.on_title_error)

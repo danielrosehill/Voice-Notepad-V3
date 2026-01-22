@@ -80,6 +80,7 @@ class RecentTranscriptItem(QFrame):
         transcript_text: str,
         timestamp: str,
         word_count: int,
+        transcript_preview: Optional[str] = None,
         parent=None
     ):
         super().__init__(parent)
@@ -103,8 +104,11 @@ class RecentTranscriptItem(QFrame):
         layout.setContentsMargins(8, 4, 8, 4)
         layout.setSpacing(8)
 
-        # Preview text (truncated)
-        preview = truncate_text(transcript_text, 50)
+        # Preview text (use pre-truncated preview if available, else truncate locally)
+        if transcript_preview:
+            preview = truncate_text(transcript_preview, 50)
+        else:
+            preview = truncate_text(transcript_text, 50)
         self.preview_label = QLabel(preview)
         self.preview_label.setStyleSheet("color: #333; font-size: 12px;")
         self.preview_label.setToolTip(transcript_text[:500] + ("..." if len(transcript_text) > 500 else ""))
@@ -292,6 +296,7 @@ class RecentPanel(QWidget):
                 transcript_text=doc.get("transcript_text", ""),
                 timestamp=doc.get("timestamp", ""),
                 word_count=doc.get("word_count", 0),
+                transcript_preview=doc.get("transcript_preview"),  # Pre-truncated by DB
             )
             item.copy_clicked.connect(self._on_item_copy)
             item.item_clicked.connect(self._on_item_clicked)
@@ -310,9 +315,10 @@ class RecentPanel(QWidget):
             self.summary_label.setText("No recent transcriptions")
             return
 
-        # Show first transcript preview when collapsed
+        # Show first transcript preview when collapsed (use pre-truncated if available)
         first = self._transcripts[0]
-        preview = truncate_text(first.get("transcript_text", ""), 40)
+        text = first.get("transcript_preview") or first.get("transcript_text", "")
+        preview = truncate_text(text, 40)
         self.summary_label.setText(preview)
 
     def _on_item_copy(self, transcript_id: str):

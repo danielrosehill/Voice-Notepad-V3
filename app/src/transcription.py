@@ -54,7 +54,7 @@ class OpenRouterClient(TranscriptionClient):
 
     OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 
-    def __init__(self, api_key: str, model: str = "google/gemini-2.5-flash"):
+    def __init__(self, api_key: str, model: str = "google/gemini-3-flash-preview"):
         self.api_key = api_key
         self.model = model
         self._client = None
