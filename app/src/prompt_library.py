@@ -1017,9 +1017,21 @@ def build_prompt_from_config(prompt_config: PromptConfig, app_config: Any = None
 
     lines = ["Your task is to provide a cleaned transcription of the audio recorded by the user."]
 
-    # ===== LAYER 1: FOUNDATION (ALWAYS APPLIED) =====
-    lines.append("\n## Foundation Cleanup (Always Applied)")
+    # ===== LAYER 1: FOUNDATION (CONDITIONALLY APPLIED) =====
+    lines.append("\n## Foundation Cleanup")
     for section_key, section_data in FOUNDATION_PROMPT_SECTIONS.items():
+        # Skip format_detection if prompt_infer_format is disabled
+        if section_key == "format_detection" and app_config and not getattr(app_config, 'prompt_infer_format', False):
+            continue
+        # Skip meta_instructions if prompt_follow_instructions is disabled
+        if section_key == "meta_instructions" and app_config and not getattr(app_config, 'prompt_follow_instructions', True):
+            continue
+        # Skip subheadings if prompt_add_subheadings is disabled
+        if section_key == "subheadings" and app_config and not getattr(app_config, 'prompt_add_subheadings', False):
+            continue
+        # Skip markdown_formatting if prompt_markdown_formatting is disabled
+        if section_key == "markdown_formatting" and app_config and not getattr(app_config, 'prompt_markdown_formatting', False):
+            continue
         for instruction in section_data["instructions"]:
             lines.append(f"- {instruction}")
 
